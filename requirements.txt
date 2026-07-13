@@ -1,0 +1,14 @@
+PySide6
+pandas
+numpy
+plotly
+requests
+httpx
+sqlalchemy
+alembic
+loguru
+python-dotenv
+openai
+ta
+yfinance
+APScheduler
