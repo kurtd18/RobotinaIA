@@ -12,3 +12,4 @@ openai
 ta
 yfinance
 APScheduler
+rich

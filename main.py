@@ -1,15 +1,10 @@
-"""
-==========================================================
-RobotinaIA
-Versión: 0.1.0
+from app.core.application import RobotinaApplication
 
-Autor:
-Elkin Ahumada
 
-Proyecto:
-Asistente Inteligente para Inversiones
+def main():
+    app = RobotinaApplication()
+    app.start()
 
-==========================================================
-"""
 
-print("🤖 RobotinaIA iniciando...")
+if __name__ == "__main__":
+    main()
