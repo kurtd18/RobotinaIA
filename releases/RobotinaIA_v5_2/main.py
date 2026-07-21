@@ -4,27 +4,18 @@ import schedule
 import datetime
 import sys
 
-from signal_manager import (
-    expire_old_signals
-)
-
 
 def ejecutar_robotina():
 
     ahora = datetime.datetime.now()
 
     if (
-
-        ahora.hour >= 9
-        and
+        ahora.hour >= 9 and
         ahora.hour < 17
-
     ):
 
         print("=" * 80)
-        print(
-            f"Ejecutando RobotinaIA: {ahora}"
-        )
+        print(f"Ejecutando RobotinaIA: {ahora}")
         print("=" * 80)
 
         subprocess.run(
@@ -34,12 +25,8 @@ def ejecutar_robotina():
             ]
         )
 
-        expire_old_signals()
-
         print("=" * 80)
-        print(
-            "FIN DE EJECUCION"
-        )
+        print("FIN DE EJECUCION")
         print("=" * 80)
 
     else:
@@ -49,19 +36,12 @@ def ejecutar_robotina():
         )
 
 
-schedule.every(
-    15
-).minutes.do(
+schedule.every(15).minutes.do(
     ejecutar_robotina
 )
 
-print(
-    "RobotinaIA V7"
-)
-
-print(
-    f"Python: {sys.executable}"
-)
+print("RobotinaIA V4")
+print(f"Python utilizado: {sys.executable}")
 
 ejecutar_robotina()
 
@@ -69,6 +49,4 @@ while True:
 
     schedule.run_pending()
 
-    time.sleep(
-        1
-    )
+    time.sleep(1)
