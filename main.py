@@ -1,7 +1,10 @@
+
 import time
 import subprocess
 import schedule
 import sys
+
+import init_db
 
 from datetime import datetime
 from zoneinfo import ZoneInfo

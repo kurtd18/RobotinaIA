@@ -1,33 +1,30 @@
 import sqlite3
 
-conn = sqlite3.connect(
-    "signals.db"
-)
+DB_NAME = "robotinaia.db"
+
+conn = sqlite3.connect(DB_NAME)
 
 cursor = conn.cursor()
 
 cursor.execute("""
-CREATE TABLE IF NOT EXISTS signals(
+CREATE TABLE IF NOT EXISTS signals (
 
     id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-    fecha TEXT,
-    activo TEXT,
+    symbol TEXT NOT NULL,
 
-    score INTEGER,
+    score INTEGER NOT NULL,
 
-    precio_entrada REAL,
+    signal TEXT NOT NULL,
 
-    precio_salida REAL,
+    price REAL NOT NULL,
 
-    resultado TEXT
+    timestamp TEXT NOT NULL
+
 )
 """)
 
 conn.commit()
-
 conn.close()
 
-print(
-    "Base de datos creada."
-)
+print("Base de datos robotinaia.db creada correctamente.")
