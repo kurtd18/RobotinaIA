@@ -7,9 +7,9 @@ import pandas_ta as ta
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 
-from database import (
+from app.database import (
     guardar_senal,
-    existe_senal_pendiente
+    existe_senal_pendiente,
 )
 
 # ==========================================================
