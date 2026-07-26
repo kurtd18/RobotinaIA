@@ -1,9 +1,10 @@
 import os
-import requests
 import datetime
+import requests
 import yfinance as yf
 import pandas_ta as ta
 
+from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 
 from database import (
@@ -11,173 +12,163 @@ from database import (
     existe_senal_pendiente
 )
 
+# ==========================================================
+# CONFIGURACIÓN
+# ==========================================================
+
 load_dotenv()
 
-TOKEN = os.getenv(
-    "TELEGRAM_BOT_TOKEN"
-)
-
-CHAT_ID = os.getenv(
-    "TELEGRAM_CHAT_ID"
-)
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 ACTIVOS = [
-
     "MINEROS.CL",
     "ECOPETROL.CL",
-
     "BTC-USD",
     "ETH-USD",
     "SOL-USD",
-
     "AAPL",
     "NVDA"
-
 ]
+
+ahora = datetime.datetime.now(
+    ZoneInfo("America/Bogota")
+)
 
 resultados = []
 
 print("=" * 80)
-print("ROBOTINAIA V5.2")
-print(
-    f"Hora: {datetime.datetime.now()}"
-)
+print("ROBOTINAIA V6.0")
+print(f"Hora Colombia: {ahora}")
 print("=" * 80)
+
+
+# ==========================================================
+# FUNCIONES
+# ==========================================================
+
+def calcular_score(data):
+
+    score = 0
+
+    data["RSI"] = ta.rsi(data["Close"], length=14)
+
+    data["EMA9"] = ta.ema(data["Close"], length=9)
+    data["EMA21"] = ta.ema(data["Close"], length=21)
+
+    data["VWAP"] = ta.vwap(
+        data["High"],
+        data["Low"],
+        data["Close"],
+        data["Volume"]
+    )
+
+    macd = ta.macd(data["Close"])
+    data = data.join(macd)
+
+    data["ATR"] = ta.atr(
+        data["High"],
+        data["Low"],
+        data["Close"],
+        length=14
+    )
+
+    data["VOL_AVG"] = (
+        data["Volume"]
+        .rolling(20)
+        .mean()
+    )
+
+    ultimo = data.iloc[-1]
+
+    if ultimo["RSI"] > 50:
+        score += 10
+
+    if ultimo["EMA9"] > ultimo["EMA21"]:
+        score += 15
+
+    if ultimo["Close"] > ultimo["VWAP"]:
+        score += 30
+
+    if ultimo["MACD_12_26_9"] > ultimo["MACDs_12_26_9"]:
+        score += 10
+
+    if ultimo["Volume"] > ultimo["VOL_AVG"]:
+        score += 25
+
+    if ultimo["ATR"] > 30:
+        score += 5
+
+    # Peso temporal
+    score += 5
+
+    return score, float(ultimo["Close"])
+
+
+def enviar_telegram(activo, score, precio):
+
+    mensaje = f"""
+🤖 ROBOTINAIA
+
+✅ OPORTUNIDAD DETECTADA
+
+📈 Activo: {activo}
+
+⭐ Score: {score}/100
+
+💲 Precio: {precio:.2f}
+
+🕒 Hora: {ahora}
+
+🎯 Acción sugerida:
+Revisar la entrada antes de comprar.
+"""
+
+    respuesta = requests.post(
+
+        f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+
+        json={
+            "chat_id": CHAT_ID,
+            "text": mensaje
+        }
+
+    )
+
+    print(f"{activo} -> TELEGRAM ({respuesta.status_code})")
+
+
+# ==========================================================
+# ANALISIS
+# ==========================================================
 
 for activo in ACTIVOS:
 
     try:
 
-        score = 0
-
-        data = yf.Ticker(
-            activo
-        ).history(
+        data = yf.Ticker(activo).history(
             period="5d",
             interval="5m"
         )
 
         if data.empty:
 
-            print(
-                f"{activo}: SIN DATOS"
-            )
-
+            print(f"{activo}: SIN DATOS")
             continue
 
-        # RSI
+        score, precio = calcular_score(data)
 
-        data["RSI"] = ta.rsi(
-            data["Close"],
-            length=14
-        )
+        resultados.append({
+            "activo": activo,
+            "score": score,
+            "precio": precio
+        })
 
-        # EMA
-
-        data["EMA9"] = ta.ema(
-            data["Close"],
-            length=9
-        )
-
-        data["EMA21"] = ta.ema(
-            data["Close"],
-            length=21
-        )
-
-        # VWAP
-
-        data["VWAP"] = ta.vwap(
-            data["High"],
-            data["Low"],
-            data["Close"],
-            data["Volume"]
-        )
-
-        # MACD
-
-        macd = ta.macd(
-            data["Close"]
-        )
-
-        data = data.join(
-            macd
-        )
-
-        # ATR
-
-        data["ATR"] = ta.atr(
-            data["High"],
-            data["Low"],
-            data["Close"],
-            length=14
-        )
-
-        # Volumen promedio
-
-        data["VOL_AVG"] = (
-            data["Volume"]
-            .rolling(20)
-            .mean()
-        )
-
-        ultimo = data.iloc[-1]
-
-        # SCORE
-
-        if ultimo["RSI"] > 50:
-
-            score += 10
-
-        if ultimo["EMA9"] > ultimo["EMA21"]:
-
-            score += 15
-
-        if ultimo["Close"] > ultimo["VWAP"]:
-
-            score += 30
-
-        if (
-            ultimo["MACD_12_26_9"]
-            >
-            ultimo["MACDs_12_26_9"]
-        ):
-
-            score += 10
-
-        if (
-            ultimo["Volume"]
-            >
-            ultimo["VOL_AVG"]
-        ):
-
-            score += 25
-
-        if ultimo["ATR"] > 30:
-
-            score += 5
-
-        # Peso temporal Bollinger
-
-        score += 5
-
-        resultados.append(
-            (
-                activo,
-                score
-            )
-        )
-
-        print(
-            f"{activo:15}"
-            f" -> SCORE: {score}"
-        )
+        print(f"{activo:15} -> SCORE: {score}")
 
     except Exception as e:
 
-        print(
-            f"{activo}: ERROR"
-        )
-
+        print(f"{activo}: ERROR")
         print(e)
 
 print()
@@ -185,128 +176,63 @@ print("=" * 80)
 print("TOP OPORTUNIDADES")
 print("=" * 80)
 
-for activo, score in sorted(
-    resultados,
-    key=lambda x: x[1],
+resultados.sort(
+    key=lambda x: x["score"],
     reverse=True
-):
+)
+
+for r in resultados:
 
     print(
-        f"{activo:15} {score}"
+        f"{r['activo']:15} {r['score']}"
     )
 
 print()
 print("=" * 80)
-print(
-    "SENALES MAYORES O IGUALES A 80"
-)
+print("SEÑALES MAYORES O IGUALES A 80")
 print("=" * 80)
 
-for activo, score in sorted(
-    resultados,
-    key=lambda x: x[1],
-    reverse=True
-):
+for r in resultados:
 
-    if score >= 80:
+    if r["score"] < 80:
+        continue
 
-        try:
+    try:
 
-            if existe_senal_pendiente(
-                activo
-            ):
-
-                print(
-                    f"{activo}"
-                    " -> YA EXISTE UNA "
-                    "SENAL PENDIENTE"
-                )
-
-                continue
-
-            data = yf.Ticker(
-                activo
-            ).history(
-                period="5d",
-                interval="5m"
-            )
-
-            if data.empty:
-
-                continue
-
-            precio = float(
-                data.iloc[-1]["Close"]
-            )
-
-            guardar_senal(
-
-                str(
-                    datetime.datetime.now()
-                ),
-
-                activo,
-
-                score,
-
-                precio
-            )
-
-            mensaje = f"""
-ROBOTINAIA
-
-OPORTUNIDAD DETECTADA
-
-Activo:
-{activo}
-
-Score:
-{score}/100
-
-Precio Entrada:
-{precio:.2f}
-
-Probabilidad:
-ALTA
-
-Horizonte:
-5-15 minutos.
-
-Hora:
-{datetime.datetime.now()}
-"""
-
-            respuesta = requests.post(
-
-                f"https://api.telegram.org/"
-                f"bot{TOKEN}/sendMessage",
-
-                json={
-
-                    "chat_id": CHAT_ID,
-
-                    "text": mensaje
-                }
-
-            )
+        if existe_senal_pendiente(r["activo"]):
 
             print(
-
-                f"{activo}"
-
-                f" -> TELEGRAM "
-
-                f"({respuesta.status_code})"
-
+                f"{r['activo']} -> YA EXISTE UNA SEÑAL PENDIENTE"
             )
 
-        except Exception as e:
+            continue
 
-            print(
-                f"{activo}: ERROR"
-            )
+        guardar_senal(
 
-            print(e)
+            str(ahora),
+
+            r["activo"],
+
+            r["score"],
+
+            r["precio"]
+
+        )
+
+        enviar_telegram(
+
+            r["activo"],
+
+            r["score"],
+
+            r["precio"]
+
+        )
+
+    except Exception as e:
+
+        print(f"{r['activo']}: ERROR")
+        print(e)
 
 print("=" * 80)
 print("PROCESO FINALIZADO")
