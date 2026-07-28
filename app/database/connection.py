@@ -1,7 +1,11 @@
+"""
+Conexión a la base de datos de RobotinaIA.
+"""
+
 import sqlite3
 
-DB_NAME = "robotinaia.db"
+from app.core.settings import Settings
 
 
 def get_connection():
-    return sqlite3.connect(DB_NAME)
+    return sqlite3.connect(Settings.DATABASE_NAME)

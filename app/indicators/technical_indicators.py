@@ -1,110 +1,74 @@
-import yfinance as yf
-import pandas as pd
+"""
+Indicadores técnicos reutilizables.
+
+Reciben un DataFrame de OHLCV con el mismo formato que devuelve
+yfinance con .history() (columnas: Open, High, Low, Close, Volume).
+"""
+
+import pandas_ta as ta
 
 
-class TechnicalIndicators:
-
-    @staticmethod
-    def calculate_rsi(symbol: str, period: int = 14):
-
-        try:
-
-            ticker = yf.Ticker(symbol)
-            data = ticker.history(period="3mo")
-
-            if data.empty:
-                return None
-
-            delta = data["Close"].diff()
-
-            gain = delta.where(delta > 0, 0)
-            loss = -delta.where(delta < 0, 0)
-
-            avg_gain = gain.rolling(period).mean()
-            avg_loss = loss.rolling(period).mean()
-
-            rs = avg_gain / avg_loss
-
-            rsi = 100 - (100 / (1 + rs))
-
-            return round(float(rsi.iloc[-1]), 2)
-
-        except Exception as error:
-
-            print(f"Error calculando RSI: {error}")
-            return None
-
-    @staticmethod
-    def get_rsi_status(rsi: float):
-
-        if rsi is None:
-            return "NO DISPONIBLE"
-
-        if rsi >= 70:
-            return "SOBRECOMPRA"
-
-        if rsi <= 30:
-            return "SOBREVENTA"
-
-        return "NEUTRAL"
-
-    @staticmethod
-    def calculate_sma(symbol: str, period: int = 20):
-
-        try:
-
-            ticker = yf.Ticker(symbol)
-            data = ticker.history(period="6mo")
-
-            if data.empty:
-                return None
-
-            sma = data["Close"].rolling(period).mean()
-
-            return round(float(sma.iloc[-1]), 2)
-
-        except Exception as error:
-
-            print(f"Error calculando SMA: {error}")
-            return None
-
-    @staticmethod
-    def calculate_ema(symbol: str, period: int = 20):
-
-        try:
-
-            ticker = yf.Ticker(symbol)
-            data = ticker.history(period="6mo")
-
-            if data.empty:
-                return None
-
-            ema = data["Close"].ewm(span=period).mean()
-
-            return round(float(ema.iloc[-1]), 2)
-
-        except Exception as error:
-
-            print(f"Error calculando EMA: {error}")
-            return None
+def calcular_rsi(data, length=14):
+    return ta.rsi(data["Close"], length=length)
 
 
-if __name__ == "__main__":
+def calcular_ema(data, length):
+    return ta.ema(data["Close"], length=length)
 
-    print("=" * 60)
-    print("INDICADORES TÉCNICOS")
-    print("=" * 60)
 
-    symbol = "AAPL"
+def calcular_vwap(data):
+    return ta.vwap(data["High"], data["Low"], data["Close"], data["Volume"])
 
-    rsi = TechnicalIndicators.calculate_rsi(symbol)
-    sma = TechnicalIndicators.calculate_sma(symbol)
-    ema = TechnicalIndicators.calculate_ema(symbol)
 
-    print(f"Activo      : {symbol}")
-    print(f"RSI         : {rsi}")
-    print(f"Estado RSI  : {TechnicalIndicators.get_rsi_status(rsi)}")
-    print(f"SMA(20)     : {sma}")
-    print(f"EMA(20)     : {ema}")
+def calcular_macd(data):
+    return ta.macd(data["Close"])
 
-    print("=" * 60)
+
+def calcular_atr(data, length=14):
+    return ta.atr(data["High"], data["Low"], data["Close"], length=length)
+
+
+def calcular_momentum(data, length=14):
+    return ta.mom(data["Close"], length=length)
+
+
+def calcular_volumen_promedio(data, ventana=20):
+    return data["Volume"].rolling(ventana).mean()
+
+
+def calcular_bollinger(data, length=20):
+    return ta.bbands(data["Close"], length=length)
+
+
+def agregar_todos_los_indicadores(data):
+    """Agrega todas las columnas de indicadores técnicos a una copia del DataFrame."""
+
+    data = data.copy()
+
+    data["RSI"] = calcular_rsi(data)
+    data["EMA9"] = calcular_ema(data, 9)
+    data["EMA21"] = calcular_ema(data, 21)
+    data["VWAP"] = calcular_vwap(data)
+    data["MOM14"] = calcular_momentum(data)
+
+    macd = calcular_macd(data)
+    if macd is not None:
+        data = data.join(macd)
+    else:
+        # No hay suficientes datos para calcular MACD (activo de baja
+        # liquidez, pocas velas en la ventana). Se deja vacío en vez de
+        # tronar; calcular_score lo trata como "condición no cumplida".
+        data["MACD_12_26_9"] = None
+        data["MACDh_12_26_9"] = None
+        data["MACDs_12_26_9"] = None
+
+    bb = calcular_bollinger(data)
+    if bb is not None:
+        data = data.join(bb)
+    else:
+        data["BBU_20_2.0_2.0"] = None
+
+    data["ATR"] = calcular_atr(data)
+    data["VOL_AVG"] = calcular_volumen_promedio(data)
+
+    return data

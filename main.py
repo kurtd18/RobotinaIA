@@ -1,64 +1,83 @@
+"""
+Punto de entrada de RobotinaIA.
+Ejecuta el ciclo de scoring cada N minutos, 24/7.
+"""
 
-import time
-import subprocess
-import schedule
 import sys
-
-import init_db
+import time
 
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from loguru import logger
+
+import init_db
+
+from app.alerts.portfolio_alerts import revisar_alertas_portafolio
+from app.core.settings import Settings
+from scoring import ejecutar_scoring
 from signal_manager import expire_old_signals
 
 
-def ejecutar_robotina():
+logger.add(
+    "logs/robotina_{time:YYYY-MM-DD}.log",
+    rotation="1 day",
+    retention="14 days",
+    level="INFO",
+)
+
+
+def ejecutar_robotina() -> None:
+    """Corre un ciclo completo: scoring + expiración de señales pendientes."""
+
+    ahora = datetime.now(ZoneInfo("America/Bogota"))
+
+    logger.info("=" * 80)
+    logger.info(f"Ejecutando RobotinaIA: {ahora}")
+    logger.info("=" * 80)
 
     try:
+        ejecutar_scoring()
+    except Exception:
+        logger.exception("Error ejecutando scoring.py")
 
-        ahora = datetime.now(
-            ZoneInfo("America/Bogota")
-        )
+    try:
+        expire_old_signals()
+    except Exception:
+        logger.exception("Error expirando señales pendientes")
 
-        if 9 <= ahora.hour < 17:
+    try:
+        revisar_alertas_portafolio()
+    except Exception:
+        logger.exception("Error revisando alertas de portafolio")
 
-            print("=" * 80)
-            print(f"Ejecutando RobotinaIA: {ahora}")
-            print("=" * 80)
-
-            subprocess.run(
-                [
-                    sys.executable,
-                    "scoring.py"
-                ],
-                check=False
-            )
-
-            expire_old_signals()
-
-            print("=" * 80)
-            print("FIN DE EJECUCIÓN")
-            print("=" * 80)
-
-        else:
-
-            print(f"Fuera de horario: {ahora}")
-
-    except Exception as e:
-
-        print(f"ERROR: {e}")
+    logger.info("=" * 80)
+    logger.info("FIN DE EJECUCIÓN")
+    logger.info("=" * 80)
 
 
-schedule.every(15).minutes.do(ejecutar_robotina)
+def main() -> None:
+    logger.info("=" * 80)
+    logger.info(f"{Settings.APP_NAME} - Iniciando scheduler")
+    logger.info(f"Python: {sys.executable}")
+    logger.info(f"Intervalo: {Settings.SCAN_INTERVAL_MINUTES} min")
+    logger.info("=" * 80)
 
-print("=" * 80)
-print("RobotinaIA V7")
-print(f"Python: {sys.executable}")
-print("=" * 80)
+    init_db.init_db()
 
-ejecutar_robotina()
+    ejecutar_robotina()
 
-while True:
+    import schedule
 
-    schedule.run_pending()
-    time.sleep(1)
+    schedule.every(Settings.SCAN_INTERVAL_MINUTES).minutes.do(ejecutar_robotina)
+
+    try:
+        while True:
+            schedule.run_pending()
+            time.sleep(1)
+    except KeyboardInterrupt:
+        logger.info("RobotinaIA detenido por el usuario")
+
+
+if __name__ == "__main__":
+    main()

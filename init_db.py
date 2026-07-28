@@ -1,30 +1,19 @@
-import sqlite3
+"""
+Script de inicialización de la base de datos de RobotinaIA.
+Uso: python init_db.py
+"""
 
-DB_NAME = "robotinaia.db"
+from loguru import logger
 
-conn = sqlite3.connect(DB_NAME)
+from app.database.schema import create_tables
 
-cursor = conn.cursor()
 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS signals (
+def init_db():
+    """Crea las tablas necesarias si no existen."""
 
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    create_tables()
+    logger.info("Base de datos robotinaia.db creada/verificada correctamente.")
 
-    symbol TEXT NOT NULL,
 
-    score INTEGER NOT NULL,
-
-    signal TEXT NOT NULL,
-
-    price REAL NOT NULL,
-
-    timestamp TEXT NOT NULL
-
-)
-""")
-
-conn.commit()
-conn.close()
-
-print("Base de datos robotinaia.db creada correctamente.")
+if __name__ == "__main__":
+    init_db()

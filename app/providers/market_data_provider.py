@@ -1,8 +1,9 @@
 """
-Contrato para cualquier proveedor de datos de mercado.
+Contrato para cualquier proveedor de datos de mercado (ver ADR-001).
 """
 
 from abc import ABC, abstractmethod
+
 from app.models.stock import Stock
 
 

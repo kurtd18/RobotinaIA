@@ -27,3 +27,10 @@ logs/
 # Sistema operativo
 .DS_Store
 Thumbs.db
+
+# Volcados de estructura / backups de texto
+backup/
+estructura*.txt
+
+# Releases empaquetadas (usar GitHub Releases en su lugar)
+releases/*.zip

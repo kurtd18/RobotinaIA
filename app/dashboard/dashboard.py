@@ -1,12 +1,18 @@
+import sys
+from pathlib import Path
+
 import streamlit as st
-import sqlite3
 import pandas as pd
 
-DB_NAME = "robotinaia.db"
+# Permite correr este archivo con "streamlit run app/dashboard/dashboard.py"
+# sin depender del directorio desde el que se invoque.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+from app.database.connection import get_connection
 
 
 def cargar_senales():
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_connection()
 
     try:
         df = pd.read_sql_query(
@@ -85,7 +91,7 @@ if df.empty:
 
 else:
 
-    st.dataframe(
+   st.dataframe(
         df,
-        use_container_width=True
+        width="stretch"
     )

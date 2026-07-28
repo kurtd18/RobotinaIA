@@ -6,7 +6,7 @@ Core de la aplicación
 from datetime import datetime
 
 from app.core.settings import Settings
-from app.services.mock_market_data_provider import MockMarketDataProvider
+from app.providers.mock_provider import MockMarketDataProvider
 
 
 class RobotinaApplication:

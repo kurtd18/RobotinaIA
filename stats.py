@@ -1,121 +1,112 @@
-import sqlite3
+"""
+Estadísticas de señales de RobotinaIA.
 
-conn = sqlite3.connect(
-    "signals.db"
-)
+Nota: esto refleja el estado actual del esquema (PENDING/EXECUTED/EXPIRED).
+Todavía no existe una relación entre una señal y la posición de portafolio
+que generó, así que no se puede calcular ganó/perdió real por señal.
+Eso queda anotado en el backlog como una funcionalidad futura.
+"""
 
-cursor = conn.cursor()
+from app.database.connection import get_connection
 
-print("=" * 80)
-print("ESTADISTICAS ROBOTINAIA")
-print("=" * 80)
 
-# Totales
-cursor.execute(
-    "SELECT COUNT(*) FROM signals"
-)
+def obtener_conteo_por_estado():
+    """Cuenta señales por estado: PENDING, EXECUTED, EXPIRED."""
 
-total = cursor.fetchone()[0]
+    conn = get_connection()
+    cursor = conn.cursor()
 
-# Ganadas
-cursor.execute(
-    """
-    SELECT COUNT(*)
-    FROM signals
-    WHERE resultado='GANO'
-    """
-)
+    cursor.execute("SELECT COUNT(*) FROM signals")
+    total = cursor.fetchone()[0]
 
-gano = cursor.fetchone()[0]
+    conteos = {}
+    for estado in ("PENDING", "EXECUTED", "EXPIRED"):
+        cursor.execute(
+            "SELECT COUNT(*) FROM signals WHERE signal = ?",
+            (estado,),
+        )
+        conteos[estado] = cursor.fetchone()[0]
 
-# Perdidas
-cursor.execute(
-    """
-    SELECT COUNT(*)
-    FROM signals
-    WHERE resultado='PERDIO'
-    """
-)
+    conn.close()
 
-perdio = cursor.fetchone()[0]
+    return total, conteos
 
-# Pendientes
-cursor.execute(
-    """
-    SELECT COUNT(*)
-    FROM signals
-    WHERE resultado='PENDIENTE'
-    """
-)
 
-pendiente = cursor.fetchone()[0]
+def obtener_top_activos():
+    """Cuenta señales agrupadas por símbolo, de mayor a menor."""
 
-# Win Rate
-if (gano + perdio) > 0:
+    conn = get_connection()
+    cursor = conn.cursor()
 
-    win_rate = (
-        gano /
-        (gano + perdio)
-    ) * 100
-
-else:
-
-    win_rate = 0
-
-print(f"Total señales : {total}")
-print(f"Ganadas       : {gano}")
-print(f"Perdidas      : {perdio}")
-print(f"Pendientes    : {pendiente}")
-print(f"Win Rate      : {win_rate:.2f}%")
-
-print()
-print("=" * 80)
-print("TOP ACTIVOS")
-print("=" * 80)
-
-cursor.execute(
-    """
-    SELECT
-        activo,
-        COUNT(*)
-    FROM signals
-    GROUP BY activo
-    ORDER BY COUNT(*) DESC
-    """
-)
-
-for fila in cursor.fetchall():
-
-    print(
-        f"{fila[0]:15} {fila[1]}"
+    cursor.execute(
+        """
+        SELECT symbol, COUNT(*)
+        FROM signals
+        GROUP BY symbol
+        ORDER BY COUNT(*) DESC
+        """
     )
 
-print()
-print("=" * 80)
-print("ULTIMAS 10 SENALES")
-print("=" * 80)
+    filas = cursor.fetchall()
+    conn.close()
 
-cursor.execute(
-    """
-    SELECT
-        fecha,
-        activo,
-        score,
-        resultado
-    FROM signals
+    return filas
 
-    ORDER BY id DESC
 
-    LIMIT 10
-    """
-)
+def obtener_ultimas_senales(limite=10):
+    """Devuelve las últimas N señales registradas."""
 
-for fila in cursor.fetchall():
+    conn = get_connection()
+    cursor = conn.cursor()
 
-    print(
-        fila
+    cursor.execute(
+        """
+        SELECT timestamp, symbol, score, signal
+        FROM signals
+        ORDER BY id DESC
+        LIMIT ?
+        """,
+        (limite,),
     )
 
-print("=" * 80)
+    filas = cursor.fetchall()
+    conn.close()
 
-conn.close()
+    return filas
+
+
+def mostrar_estadisticas():
+    """Imprime en consola un resumen de estadísticas de señales."""
+
+    print("=" * 80)
+    print("ESTADISTICAS ROBOTINAIA")
+    print("=" * 80)
+
+    total, conteos = obtener_conteo_por_estado()
+
+    print(f"Total señales : {total}")
+    print(f"Pendientes    : {conteos['PENDING']}")
+    print(f"Ejecutadas    : {conteos['EXECUTED']}")
+    print(f"Expiradas     : {conteos['EXPIRED']}")
+
+    print()
+    print("=" * 80)
+    print("TOP ACTIVOS")
+    print("=" * 80)
+
+    for symbol, cantidad in obtener_top_activos():
+        print(f"{symbol:15} {cantidad}")
+
+    print()
+    print("=" * 80)
+    print("ULTIMAS 10 SENALES")
+    print("=" * 80)
+
+    for fila in obtener_ultimas_senales():
+        print(fila)
+
+    print("=" * 80)
+
+
+if __name__ == "__main__":
+    mostrar_estadisticas()

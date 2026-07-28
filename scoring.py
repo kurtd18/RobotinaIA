@@ -1,103 +1,91 @@
-import os
-import datetime
-import requests
-import yfinance as yf
-import pandas_ta as ta
+﻿"""
+Motor de scoring técnico de RobotinaIA.
+Analiza los activos configurados, calcula un score técnico y
+genera/envía señales cuando el score supera el umbral.
+"""
 
+from datetime import datetime
 from zoneinfo import ZoneInfo
-from dotenv import load_dotenv
 
-from app.database import (
-    guardar_senal,
-    existe_senal_pendiente,
-)
+import yfinance as yf
+import pandas as pd
 
-# ==========================================================
-# CONFIGURACIÓN
-# ==========================================================
+from loguru import logger
 
-load_dotenv()
+from app.core.settings import Settings
+from app.database import guardar_senal, existe_senal_pendiente
+from app.indicators.technical_indicators import agregar_todos_los_indicadores
+from app.services.alert_engine import AlertEngine
+from app.services.telegram_service import enviar_mensaje_telegram
 
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+ACTIVOS = Settings.todos_los_activos()
 
-ACTIVOS = [
-    "MINEROS.CL",
-    "ECOPETROL.CL",
-    "BTC-USD",
-    "ETH-USD",
-    "SOL-USD",
-    "AAPL",
-    "NVDA"
-]
+UMBRAL_SENAL = Settings.UMBRAL_SENAL
 
-ahora = datetime.datetime.now(
-    ZoneInfo("America/Bogota")
-)
+STOP_INICIAL_PCT = 0.01     # -1% desde la entrada
+OBJETIVO_INICIAL_PCT = 0.03  # +3% desde la entrada
 
-resultados = []
+# ATR relativo al precio (%), en vez de un número fijo. Un ATR absoluto de
+# "30" no tiene sentido comparado entre activos de escalas de precio muy
+# distintas (ej. ECOPETROL.CL ~2,500 vs CIBEST.CL ~83,500 vs AAPL ~337) -
+# calibrado con datos reales el 28/07/2026, sujeto a ajuste con más evidencia.
+ATR_PCT_THRESHOLD = 0.3
 
-print("=" * 80)
-print("ROBOTINAIA V6.0")
-print(f"Hora Colombia: {ahora}")
-print("=" * 80)
+alert_engine = AlertEngine()
 
 
-# ==========================================================
-# FUNCIONES
-# ==========================================================
+def _mayor_que(a, b):
+    """Compara a > b de forma segura: si falta algún dato (None/NaN,
+    activo de baja liquidez con pocas velas), la condición se toma como
+    no cumplida en vez de tronar."""
+
+    if pd.isna(a) or pd.isna(b):
+        return False
+
+    return a > b
+
+
+def _atr_relativo(atr, close):
+    """Calcula el ATR como porcentaje del precio. None si no se puede calcular."""
+
+    if pd.isna(atr) or pd.isna(close) or close == 0:
+        return None
+
+    return (atr / close) * 100
+
 
 def calcular_score(data):
+    """Calcula el score técnico (0-100) y el precio de cierre más reciente."""
 
     score = 0
 
-    data["RSI"] = ta.rsi(data["Close"], length=14)
-
-    data["EMA9"] = ta.ema(data["Close"], length=9)
-    data["EMA21"] = ta.ema(data["Close"], length=21)
-
-    data["VWAP"] = ta.vwap(
-        data["High"],
-        data["Low"],
-        data["Close"],
-        data["Volume"]
-    )
-
-    macd = ta.macd(data["Close"])
-    data = data.join(macd)
-
-    data["ATR"] = ta.atr(
-        data["High"],
-        data["Low"],
-        data["Close"],
-        length=14
-    )
-
-    data["VOL_AVG"] = (
-        data["Volume"]
-        .rolling(20)
-        .mean()
-    )
-
+    data = agregar_todos_los_indicadores(data)
     ultimo = data.iloc[-1]
 
-    if ultimo["RSI"] > 50:
+    if _mayor_que(ultimo["RSI"], 50):
         score += 10
 
-    if ultimo["EMA9"] > ultimo["EMA21"]:
+    if _mayor_que(ultimo["EMA9"], ultimo["EMA21"]):
+        score += 10
+
+    if _mayor_que(ultimo["Close"], ultimo["VWAP"]):
+        score += 20
+
+    if _mayor_que(ultimo["MACD_12_26_9"], ultimo["MACDs_12_26_9"]):
+        score += 10
+
+    if _mayor_que(ultimo["Volume"], ultimo["VOL_AVG"]):
         score += 15
 
-    if ultimo["Close"] > ultimo["VWAP"]:
-        score += 30
-
-    if ultimo["MACD_12_26_9"] > ultimo["MACDs_12_26_9"]:
-        score += 10
-
-    if ultimo["Volume"] > ultimo["VOL_AVG"]:
-        score += 25
-
-    if ultimo["ATR"] > 30:
+    atr_pct = _atr_relativo(ultimo["ATR"], ultimo["Close"])
+    if _mayor_que(atr_pct, ATR_PCT_THRESHOLD):
         score += 5
+
+    if _mayor_que(ultimo["MOM14"], 0):
+        score += 15
+
+    if _mayor_que(ultimo["Close"], ultimo["BBU_20_2.0_2.0"]):
+        score += 10
 
     # Peso temporal
     score += 5
@@ -105,7 +93,12 @@ def calcular_score(data):
     return score, float(ultimo["Close"])
 
 
-def enviar_telegram(activo, score, precio):
+def enviar_telegram(signal_id, activo, score, precio, ahora):
+    """Envía una alerta de oportunidad detectada por Telegram."""
+
+    stop_sugerido = precio * (1 - STOP_INICIAL_PCT)
+    objetivo_sugerido = precio * (1 + OBJETIVO_INICIAL_PCT)
+    recomendacion = alert_engine.get_recommendation(score)
 
     mensaje = f"""
 🤖 ROBOTINAIA
@@ -114,126 +107,87 @@ def enviar_telegram(activo, score, precio):
 
 📈 Activo: {activo}
 
-⭐ Score: {score}/100
+⭐ Score: {score}/100 ({recomendacion})
 
 💲 Precio: {precio:.2f}
 
 🕒 Hora: {ahora}
 
-🎯 Acción sugerida:
-Revisar la entrada antes de comprar.
+🎯 Stop sugerido (-1%): {stop_sugerido:.2f}
+🎯 Objetivo sugerido (+3%): {objetivo_sugerido:.2f}
+
+Para comprar, responde con la cantidad:
+/buy {signal_id} CANTIDAD
 """
 
-    respuesta = requests.post(
+    codigo = enviar_mensaje_telegram(mensaje)
 
-        f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-
-        json={
-            "chat_id": CHAT_ID,
-            "text": mensaje
-        }
-
-    )
-
-    print(f"{activo} -> TELEGRAM ({respuesta.status_code})")
+    logger.info(f"{activo} -> TELEGRAM ({codigo})")
 
 
-# ==========================================================
-# ANALISIS
-# ==========================================================
+def analizar_activos(activos, ahora):
+    """Descarga datos y calcula el score de cada activo."""
 
-for activo in ACTIVOS:
+    resultados = []
 
-    try:
+    for activo in activos:
+        try:
+            data = yf.Ticker(activo).history(period="5d", interval="5m")
 
-        data = yf.Ticker(activo).history(
-            period="5d",
-            interval="5m"
-        )
+            if data.empty:
+                logger.warning(f"{activo}: SIN DATOS")
+                continue
 
-        if data.empty:
+            score, precio = calcular_score(data)
+            resultados.append({"activo": activo, "score": score, "precio": precio})
+            logger.info(f"{activo:15} -> SCORE: {score}")
 
-            print(f"{activo}: SIN DATOS")
+        except Exception:
+            logger.exception(f"{activo}: error calculando score")
+
+    return resultados
+
+
+def procesar_senales(resultados, ahora):
+    """Guarda y notifica las señales que superan el umbral configurado."""
+
+    for r in resultados:
+        if r["score"] < UMBRAL_SENAL:
             continue
 
-        score, precio = calcular_score(data)
+        try:
+            if existe_senal_pendiente(r["activo"]):
+                logger.info(f"{r['activo']} -> YA EXISTE UNA SEÑAL PENDIENTE")
+                continue
 
-        resultados.append({
-            "activo": activo,
-            "score": score,
-            "precio": precio
-        })
+            signal_id = guardar_senal(str(ahora), r["activo"], r["score"], r["precio"])
+            enviar_telegram(signal_id, r["activo"], r["score"], r["precio"], ahora)
 
-        print(f"{activo:15} -> SCORE: {score}")
+        except Exception:
+            logger.exception(f"{r['activo']}: error procesando señal")
 
-    except Exception as e:
 
-        print(f"{activo}: ERROR")
-        print(e)
+def ejecutar_scoring():
+    """Punto de entrada del módulo: corre el ciclo completo de scoring."""
 
-print()
-print("=" * 80)
-print("TOP OPORTUNIDADES")
-print("=" * 80)
+    ahora = datetime.now(ZoneInfo("America/Bogota"))
 
-resultados.sort(
-    key=lambda x: x["score"],
-    reverse=True
-)
+    logger.info("=" * 80)
+    logger.info(f"ROBOTINAIA V6.0 - Hora Colombia: {ahora}")
+    logger.info("=" * 80)
 
-for r in resultados:
+    resultados = analizar_activos(ACTIVOS, ahora)
+    resultados.sort(key=lambda x: x["score"], reverse=True)
 
-    print(
-        f"{r['activo']:15} {r['score']}"
-    )
+    logger.info("TOP OPORTUNIDADES")
+    for r in resultados:
+        logger.info(f"{r['activo']:15} {r['score']}")
 
-print()
-print("=" * 80)
-print("SEÑALES MAYORES O IGUALES A 80")
-print("=" * 80)
+    logger.info(f"SEÑALES >= {UMBRAL_SENAL}")
+    procesar_senales(resultados, ahora)
 
-for r in resultados:
+    logger.info("PROCESO FINALIZADO")
 
-    if r["score"] < 80:
-        continue
 
-    try:
-
-        if existe_senal_pendiente(r["activo"]):
-
-            print(
-                f"{r['activo']} -> YA EXISTE UNA SEÑAL PENDIENTE"
-            )
-
-            continue
-
-        guardar_senal(
-
-            str(ahora),
-
-            r["activo"],
-
-            r["score"],
-
-            r["precio"]
-
-        )
-
-        enviar_telegram(
-
-            r["activo"],
-
-            r["score"],
-
-            r["precio"]
-
-        )
-
-    except Exception as e:
-
-        print(f"{r['activo']}: ERROR")
-        print(e)
-
-print("=" * 80)
-print("PROCESO FINALIZADO")
-print("=" * 80)
+if __name__ == "__main__":
+    ejecutar_scoring()
