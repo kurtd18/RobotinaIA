@@ -9,6 +9,7 @@ ollama==0.6.2
 pandas==3.0.3
 pandas-ta==0.4.71b0
 requests==2.34.2
+schedule==1.2.2
 streamlit==1.59.2
 python-telegram-bot==22.8
 yfinance==1.5.1
