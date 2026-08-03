@@ -17,7 +17,21 @@ class Settings:
     # al volumen persistente (ej. /data/robotinaia.db), para que los datos
     # no se pierdan en cada redeploy.
     DATABASE_NAME = os.getenv("DATABASE_PATH", "robotinaia.db")
+
+    # Ya no lo usa el scheduler principal (main.py) - la estrategia RSI(2)
+    # Connors corre una vez al día (ver HORA_EJECUCION_DIARIA), no cada N
+    # minutos como el scoring intradía anterior. Se deja la constante por
+    # si algún otro módulo todavía la referencia.
     SCAN_INTERVAL_MINUTES = 15
+
+    # Hora del día (America/Bogota) en la que corre la estrategia RSI(2)
+    # Connors. Se usa el cierre diario más reciente disponible en Yahoo
+    # Finance, así que cualquier hora después del cierre de los mercados
+    # relevantes (BVC cierra ~13:00-14:00, EE.UU. ~16:00 ET / ~17:00-18:00
+    # Bogotá) funciona - 07:00 da margen de sobra y deja la alerta lista
+    # antes de que abra la BVC (~09:30).
+    HORA_EJECUCION_DIARIA = "07:00"
+
     UMBRAL_SENAL = 80
 
     # Acciones listadas en la BVC. Verificado contra Yahoo Finance el 28/07/2026

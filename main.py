@@ -1,6 +1,6 @@
 """
 Punto de entrada de RobotinaIA.
-Ejecuta el ciclo de scoring cada N minutos, 24/7.
+Ejecuta la estrategia RSI(2) de Connors una vez al día (velas diarias).
 """
 
 import sys
@@ -15,8 +15,7 @@ import init_db
 
 from app.alerts.portfolio_alerts import revisar_alertas_portafolio
 from app.core.settings import Settings
-from scoring import ejecutar_scoring
-from signal_manager import expire_old_signals
+from app.strategies.rsi2_connors import ejecutar_rsi2_connors
 
 
 logger.add(
@@ -28,7 +27,17 @@ logger.add(
 
 
 def ejecutar_robotina() -> None:
-    """Corre un ciclo completo: scoring + expiración de señales pendientes."""
+    """Corre un ciclo completo: RSI(2) de Connors + alertas de portafolio.
+
+    A diferencia del scoring anterior (que corría cada 15 minutos con
+    velas de 5 minutos), el RSI(2) de Connors usa velas DIARIAS - se
+    corre una vez al día (ver el schedule al final de este archivo), no
+    tiene sentido revisarlo más seguido porque el resultado de "hoy" no
+    cambia hasta que cierre la vela de mañana. Por la misma razón, ya no
+    se llama a expire_old_signals() - esa expiración por tiempo (15
+    minutos) tenía sentido para el scoring intradía anterior, no para
+    una estrategia que puede mantener una posición abierta varios días.
+    """
 
     ahora = datetime.now(ZoneInfo("America/Bogota"))
 
@@ -37,14 +46,9 @@ def ejecutar_robotina() -> None:
     logger.info("=" * 80)
 
     try:
-        ejecutar_scoring()
+        ejecutar_rsi2_connors()
     except Exception:
-        logger.exception("Error ejecutando scoring.py")
-
-    try:
-        expire_old_signals()
-    except Exception:
-        logger.exception("Error expirando señales pendientes")
+        logger.exception("Error ejecutando la estrategia RSI(2) Connors")
 
     try:
         revisar_alertas_portafolio()
@@ -60,7 +64,7 @@ def main() -> None:
     logger.info("=" * 80)
     logger.info(f"{Settings.APP_NAME} - Iniciando scheduler")
     logger.info(f"Python: {sys.executable}")
-    logger.info(f"Intervalo: {Settings.SCAN_INTERVAL_MINUTES} min")
+    logger.info(f"Ejecución diaria a las: {Settings.HORA_EJECUCION_DIARIA} (America/Bogota)")
     logger.info("=" * 80)
 
     init_db.init_db()
@@ -69,12 +73,12 @@ def main() -> None:
 
     import schedule
 
-    schedule.every(Settings.SCAN_INTERVAL_MINUTES).minutes.do(ejecutar_robotina)
+    schedule.every().day.at(Settings.HORA_EJECUCION_DIARIA, "America/Bogota").do(ejecutar_robotina)
 
     try:
         while True:
             schedule.run_pending()
-            time.sleep(1)
+            time.sleep(30)
     except KeyboardInterrupt:
         logger.info("RobotinaIA detenido por el usuario")
 
