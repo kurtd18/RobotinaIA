@@ -60,18 +60,17 @@ def existe_senal_pendiente(symbol):
 
 
 def obtener_senal_pendiente_por_symbol(symbol):
-    """Devuelve (id, price) de la señal PENDING de ese símbolo, o None si
-    no hay ninguna abierta. A diferencia de existe_senal_pendiente (que
-    solo dice sí/no), esta devuelve el precio de entrada - necesario para
-    calcular el resultado (% de ganancia o pérdida) cuando se cierra la
-    posición."""
+    """Devuelve (id, price, timestamp) de la señal PENDING de ese
+    símbolo, o None si no hay ninguna abierta. Incluye el timestamp para
+    poder mostrar en la alerta de venta cuándo se disparó la compra
+    original que la originó."""
 
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute(
         """
-        SELECT id, price
+        SELECT id, price, timestamp
         FROM signals
         WHERE symbol = ?
         AND signal = 'PENDING'

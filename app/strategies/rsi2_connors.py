@@ -158,7 +158,7 @@ Esto es una alerta informativa, no una orden automática.
     logger.info(f"{activo} -> ALERTA DE COMPRA enviada (Telegram: {codigo})")
 
 
-def _enviar_alerta_venta(activo, precio_entrada, precio_salida, motivo, ahora):
+def _enviar_alerta_venta(activo, precio_entrada, fecha_entrada, precio_salida, motivo, ahora):
     variacion_pct = ((precio_salida - precio_entrada) / precio_entrada) * 100
     emoji_resultado = "✅" if variacion_pct > 0 else "🔴"
 
@@ -169,10 +169,11 @@ def _enviar_alerta_venta(activo, precio_entrada, precio_salida, motivo, ahora):
 
 📈 Activo: {activo}
 💲 Precio de entrada: {precio_entrada:,.2f}
+🕒 Fecha de entrada: {fecha_entrada}
 💲 Precio de salida: {precio_salida:,.2f}
 {emoji_resultado} Resultado: {variacion_pct:+.2f}%
 📋 Motivo: {motivo}
-🕒 Fecha: {ahora.strftime('%Y-%m-%d')}
+🕒 Fecha de salida: {ahora.strftime('%Y-%m-%d')}
 
 Esto es una alerta informativa, no una orden automática.
 """
@@ -212,7 +213,7 @@ def procesar_activo(activo, ahora):
     else:
         # Ya hay una posición abierta - revisar si hoy se cumple la
         # condición de salida.
-        signal_id, precio_entrada = senal_pendiente
+        signal_id, precio_entrada, fecha_entrada = senal_pendiente
 
         if _hubo_condicion_salida_hoy(data, rsi, sma):
             sma_hoy = float(sma.iloc[-1])
@@ -222,7 +223,7 @@ def procesar_activo(activo, ahora):
                 else f"Precio cayó bajo la SMA{SMA_PERIODO}"
             )
             marcar_senal_vendida(signal_id)
-            _enviar_alerta_venta(activo, precio_entrada, precio_hoy, motivo, ahora)
+            _enviar_alerta_venta(activo, precio_entrada, fecha_entrada, precio_hoy, motivo, ahora)
         else:
             logger.info(f"{activo}: posición abierta, sin condición de salida todavía")
 
