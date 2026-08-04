@@ -1,6 +1,7 @@
 """
 Punto de entrada de RobotinaIA.
-Ejecuta la estrategia RSI(2) de Connors una vez al día (velas diarias).
+Ejecuta la estrategia RSI(2) de Connors cada 30 minutos, de 8:00am a
+5:00pm (America/Bogota).
 """
 
 import sys
@@ -29,17 +30,25 @@ logger.add(
 def ejecutar_robotina() -> None:
     """Corre un ciclo completo: RSI(2) de Connors + alertas de portafolio.
 
-    A diferencia del scoring anterior (que corría cada 15 minutos con
-    velas de 5 minutos), el RSI(2) de Connors usa velas DIARIAS - se
-    corre una vez al día (ver el schedule al final de este archivo), no
-    tiene sentido revisarlo más seguido porque el resultado de "hoy" no
-    cambia hasta que cierre la vela de mañana. Por la misma razón, ya no
-    se llama a expire_old_signals() - esa expiración por tiempo (15
-    minutos) tenía sentido para el scoring intradía anterior, no para
-    una estrategia que puede mantener una posición abierta varios días.
+    Corre cada 30 minutos, pero SOLO dentro de la ventana de horario
+    configurada (HORA_INICIO_REVISION a HORA_FIN_REVISION, ver Settings)
+    - fuera de esa ventana, el ciclo se salta sin hacer nada. La
+    librería `schedule` no soporta nativamente "cada N minutos, pero
+    solo entre estas horas", así que el filtro se hace aquí adentro.
+
+    Nota: como el RSI(2)/SMA200 usa velas DIARIAS, y el mercado sigue
+    abierto durante la ventana de revisión, la vela de "hoy" todavía se
+    está formando en cada revisión intradía - una señal que aparece a
+    media mañana podría no sostenerse hasta el cierre. Es información
+    en vivo, no el cierre confirmado del día.
     """
 
     ahora = datetime.now(ZoneInfo("America/Bogota"))
+
+    dentro_de_horario = Settings.HORA_INICIO_REVISION <= ahora.strftime("%H:%M") <= Settings.HORA_FIN_REVISION
+    if not dentro_de_horario:
+        logger.info(f"Fuera de horario de revisión ({ahora.strftime('%H:%M')}), se salta este ciclo")
+        return
 
     logger.info("=" * 80)
     logger.info(f"Ejecutando RobotinaIA: {ahora}")
@@ -64,7 +73,10 @@ def main() -> None:
     logger.info("=" * 80)
     logger.info(f"{Settings.APP_NAME} - Iniciando scheduler")
     logger.info(f"Python: {sys.executable}")
-    logger.info(f"Ejecución diaria a las: {Settings.HORA_EJECUCION_DIARIA} (America/Bogota)")
+    logger.info(
+        f"Revisión cada {Settings.INTERVALO_REVISION_MINUTOS} min, "
+        f"de {Settings.HORA_INICIO_REVISION} a {Settings.HORA_FIN_REVISION} (America/Bogota)"
+    )
     logger.info("=" * 80)
 
     init_db.init_db()
@@ -73,7 +85,7 @@ def main() -> None:
 
     import schedule
 
-    schedule.every().day.at(Settings.HORA_EJECUCION_DIARIA, "America/Bogota").do(ejecutar_robotina)
+    schedule.every(Settings.INTERVALO_REVISION_MINUTOS).minutes.do(ejecutar_robotina)
 
     try:
         while True:
