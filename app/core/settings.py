@@ -18,21 +18,15 @@ class Settings:
     # no se pierdan en cada redeploy.
     DATABASE_NAME = os.getenv("DATABASE_PATH", "robotinaia.db")
 
-    # Ya no lo usa el scheduler principal (main.py) - la estrategia RSI(2)
-    # Connors corre una vez al día (ver HORA_EJECUCION_DIARIA), no cada N
-    # minutos como el scoring intradía anterior. Se deja la constante por
-    # si algún otro módulo todavía la referencia.
-    SCAN_INTERVAL_MINUTES = 15
-
-    # Hora del día (America/Bogota) en la que corre la estrategia RSI(2)
-    # Connors. Se usa el cierre diario más reciente disponible en Yahoo
-    # Finance, así que cualquier hora después del cierre de los mercados
-    # relevantes (BVC cierra ~13:00-14:00, EE.UU. ~16:00 ET / ~17:00-18:00
-    # Bogotá) funciona - 07:00 da margen de sobra y deja la alerta lista
-    # antes de que abra la BVC (~09:30).
-    HORA_EJECUCION_DIARIA = "07:00"
-
-    UMBRAL_SENAL = 80
+    # La estrategia RSI(2) Connors revisa cada INTERVALO_REVISION_MINUTOS
+    # minutos, solo dentro de la ventana HORA_INICIO_REVISION a
+    # HORA_FIN_REVISION (America/Bogota) - fuera de esa ventana no hace
+    # nada. Como usa velas diarias, revisar durante el día da la señal
+    # con el precio en vivo (todavía no es el cierre confirmado), no
+    # después de cerrado el mercado.
+    INTERVALO_REVISION_MINUTOS = 30
+    HORA_INICIO_REVISION = "08:00"
+    HORA_FIN_REVISION = "17:00"
 
     # Acciones listadas en la BVC. Verificado contra Yahoo Finance el 28/07/2026
     # con scripts/watchlist_scanner.py. Quitados de la lista original:
