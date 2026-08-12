@@ -18,17 +18,26 @@ TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 
-def enviar_mensaje_telegram(mensaje):
-    """Envía un mensaje de texto plano al chat configurado.
+def enviar_mensaje_telegram(mensaje, parse_mode=None):
+    """Envía un mensaje al chat configurado.
+
+    parse_mode: None (texto plano, comportamiento original) o "HTML" /
+    "MarkdownV2" para permitir negritas/monoespaciado en el mensaje
+    (ej. resúmenes con mejor formato). Parámetro opcional y aditivo -
+    quien no lo pase sigue mandando texto plano exactamente igual que antes.
 
     Devuelve el código de estado HTTP si se envió, o None si falló
     (nunca lanza una excepción hacia quien la llama).
     """
 
+    payload = {"chat_id": CHAT_ID, "text": mensaje}
+    if parse_mode:
+        payload["parse_mode"] = parse_mode
+
     try:
         respuesta = requests.post(
             f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-            json={"chat_id": CHAT_ID, "text": mensaje},
+            json=payload,
             timeout=10,
         )
         return respuesta.status_code

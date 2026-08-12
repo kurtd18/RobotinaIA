@@ -19,6 +19,7 @@ from telegram_commands import (
     mantener_command,
     analisis_command,
 )
+from app.notifications.crypto_telegram_commands import cripto_command
 
 load_dotenv()
 
@@ -40,6 +41,7 @@ Comandos:
 /vender
 /mantener
 /analisis
+/cripto
 """
     )
 
@@ -91,6 +93,12 @@ Ejemplo:
 Ejemplo:
 
 /analisis MINEROS.CL
+
+/cripto
+
+Análisis en vivo de BTC/USDT y ETH/USDT (RobotinaIA Crypto). Consulta
+de solo lectura - no abre posiciones de paper trading, eso solo lo
+hace la corrida programada.
 """
     )
 
@@ -208,6 +216,20 @@ async def analisis(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+async def cripto(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Generando análisis cripto (BTC/USDT, ETH/USDT), un momento...")
+
+    try:
+        mensaje = cripto_command()
+        await update.message.reply_text(mensaje)
+
+    except Exception:
+        logger.exception("Error procesando /cripto")
+        await update.message.reply_text(
+            "Ocurrió un error generando el análisis cripto. Intenta de nuevo más tarde."
+        )
+
+
 def main():
     if not TOKEN:
         logger.error("TELEGRAM_BOT_TOKEN no está configurado en el .env")
@@ -226,6 +248,7 @@ def main():
     app.add_handler(CommandHandler("vender", vender))
     app.add_handler(CommandHandler("mantener", mantener))
     app.add_handler(CommandHandler("analisis", analisis))
+    app.add_handler(CommandHandler("cripto", cripto))
 
     logger.info("RobotinaIA escuchando...")
 
