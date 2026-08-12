@@ -35,8 +35,11 @@ RATIO_RIESGO_BENEFICIO_MINIMO = 1.5
 
 SIMBOLOS_SOPORTADOS = (
     "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT",
-    "ADAUSDT", "DOGEUSDT", "AVAXUSDT", "LINKUSDT", "TONUSDT",
+    "ADAUSDT", "DOGEUSDT", "AVAXUSDT", "LINKUSDT", "DOTUSDT",
 )
+# TONUSDT se retiró: Binance lo tenía en estado "BREAK" (trading
+# pausado), sin velas nuevas - quedaba siempre sin datos. Reemplazado
+# por DOTUSDT (Polkadot), confirmado "TRADING" en spot y futuros.
 
 
 class CryptoScoringEngine:

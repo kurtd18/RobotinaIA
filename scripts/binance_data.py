@@ -25,16 +25,40 @@ INTERVALO_A_MS = {
 MAX_REINTENTOS = 4
 TIMEOUT_SEGUNDOS = 30
 
+# Códigos HTTP de rate limit de Binance: 429 (demasiadas solicitudes) y
+# 418 (IP bloqueada temporalmente por insistir tras un 429). Estos SÍ
+# se reintentan (son transitorios) - a diferencia de un 4xx genuino
+# como símbolo inválido, que no se va a arreglar solo.
+CODIGOS_RATE_LIMIT = {429, 418}
+
 
 def _pedir_con_reintentos(params):
     """Pide una página a Binance, reintentando con espera creciente si hay
-    una falla de red pasajera (timeout, conexión caída, etc.)."""
+    una falla de red pasajera (timeout, conexión caída, rate limit, etc.).
+
+    Bug corregido: antes, CUALQUIER error HTTP (incluido 429 - rate
+    limit) se relanzaba de inmediato sin reintentar, asumiendo que era
+    un error permanente tipo "símbolo no existe". En la práctica, al
+    analizar varios símbolos seguidos (ej. los 10 activos de RobotinaIA
+    Crypto) desde una IP de datacenter (Railway), Binance empezaba a
+    responder 429 a partir del 3er/4to símbolo, y esos activos quedaban
+    sin datos técnicos - degradando en silencio a "neutral" en el score
+    en vez de recuperarse solos.
+    """
 
     ultimo_error = None
 
     for intento in range(MAX_REINTENTOS):
         try:
             resp = requests.get(BINANCE_KLINES_URL, params=params, timeout=TIMEOUT_SEGUNDOS)
+
+            if resp.status_code in CODIGOS_RATE_LIMIT:
+                espera = int(resp.headers.get("Retry-After", 2 ** (intento + 1)))
+                print(f"    (rate limit de Binance HTTP {resp.status_code}, "
+                      f"esperando {espera}s... intento {intento + 1}/{MAX_REINTENTOS})")
+                time.sleep(espera)
+                continue
+
             resp.raise_for_status()
             return resp.json()
         except requests.exceptions.HTTPError:
@@ -46,7 +70,9 @@ def _pedir_con_reintentos(params):
                   f"intento {intento + 1}/{MAX_REINTENTOS}: {type(e).__name__})")
             time.sleep(espera)
 
-    raise ultimo_error
+    raise ultimo_error or Exception(
+        f"Se agotaron los {MAX_REINTENTOS} reintentos por rate limit de Binance"
+    )
 
 
 def obtener_klines(symbol, interval, fecha_inicio, fecha_fin=None):
