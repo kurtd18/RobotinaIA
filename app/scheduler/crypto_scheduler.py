@@ -1,7 +1,8 @@
 """
 Scheduler automático del análisis crypto (Fase 10).
 
-Corre CADA HORA en punto (minuto :00) hora de Colombia (America/Bogota),
+Corre cada hora en punto (minuto :00), solo entre VENTANA_HORA_INICIO y
+VENTANA_HORA_FIN (6:00 AM - 10:00 PM) hora de Colombia (America/Bogota),
 sin importar la zona horaria del servidor donde corra el proceso -
 siempre convierte explícitamente con zoneinfo, nunca asume que "la hora
 del sistema" ya es Bogotá ni hace aritmética manual de offsets UTC.
@@ -39,6 +40,13 @@ ZONA_COLOMBIA = ZoneInfo("America/Bogota")
 # calcula dinámicamente en debe_ejecutar_ahora() según el minuto actual.
 INTERVALO_VERIFICACION_SEGUNDOS = 30
 
+# Ventana horaria: no se ejecuta de madrugada (pedido explícito) - solo
+# entre las 6:00 AM y las 10:00 PM hora de Colombia, ambos límites
+# inclusive (corre a las 06:00 y a las 22:00, no a las 23:00 ni antes
+# de las 06:00).
+VENTANA_HORA_INICIO = 6
+VENTANA_HORA_FIN = 22
+
 
 def hora_colombia_actual() -> datetime:
     """Hora actual, siempre convertida explícitamente a America/Bogota
@@ -49,13 +57,21 @@ def hora_colombia_actual() -> datetime:
 def debe_ejecutar_ahora(ahora: datetime) -> str | None:
     """
     Devuelve la ventana de esta hora (ej. "06:00") si `ahora` cae en el
-    minuto :00 en hora de Colombia, o None si no corresponde ejecutar en
-    este instante. `ahora` puede venir en cualquier zona horaria
-    (incluida naive-UTC de otros sistemas) - siempre se convierte
-    explícitamente a America/Bogota antes de comparar.
+    minuto :00 en hora de Colombia Y dentro de la ventana horaria
+    (VENTANA_HORA_INICIO a VENTANA_HORA_FIN), o None si no corresponde
+    ejecutar en este instante (fuera de ventana o no es el minuto :00).
+    `ahora` puede venir en cualquier zona horaria (incluida naive-UTC de
+    otros sistemas) - siempre se convierte explícitamente a
+    America/Bogota antes de comparar.
     """
     ahora_bogota = ahora.astimezone(ZONA_COLOMBIA) if ahora.tzinfo else ahora.replace(tzinfo=ZONA_COLOMBIA)
-    return ahora_bogota.strftime("%H:00") if ahora_bogota.minute == 0 else None
+
+    if ahora_bogota.minute != 0:
+        return None
+    if not (VENTANA_HORA_INICIO <= ahora_bogota.hour <= VENTANA_HORA_FIN):
+        return None
+
+    return ahora_bogota.strftime("%H:00")
 
 
 def ejecutar_analisis_programado(ahora: datetime = None) -> dict:
@@ -188,7 +204,10 @@ def loop_scheduler(intervalo_verificacion_segundos: int = INTERVALO_VERIFICACION
     contra America/Bogota calculada con zoneinfo, sin importar dónde
     corra el proceso.
     """
-    logger.info("[CRYPTO SCHEDULER] Iniciado. Corre cada hora en punto, America/Bogota")
+    logger.info(
+        f"[CRYPTO SCHEDULER] Iniciado. Corre cada hora en punto entre las "
+        f"{VENTANA_HORA_INICIO:02d}:00 y las {VENTANA_HORA_FIN:02d}:00, America/Bogota"
+    )
 
     while True:
         ahora = hora_colombia_actual()

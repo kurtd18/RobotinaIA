@@ -77,15 +77,20 @@ def test_conversion_desde_otra_timezone_no_america_bogota():
     assert crypto_scheduler.debe_ejecutar_ahora(en_tokio) == "10:00"
 
 
-# ---------- corre cada hora en punto ----------
+# ---------- corre cada hora en punto, dentro de la ventana 6:00-22:00 ----------
 
 @pytest.mark.parametrize("hora,esperado", [
-    (0, "00:00"), (6, "06:00"), (10, "10:00"), (12, "12:00"),
-    (14, "14:00"), (18, "18:00"), (23, "23:00"),
+    (6, "06:00"), (10, "10:00"), (12, "12:00"), (14, "14:00"), (18, "18:00"), (22, "22:00"),
 ])
-def test_cada_hora_en_punto_dispara(hora, esperado):
+def test_cada_hora_en_punto_dentro_de_ventana_dispara(hora, esperado):
     ahora = datetime(2026, 8, 12, hora, 0, tzinfo=ZoneInfo("America/Bogota"))
     assert crypto_scheduler.debe_ejecutar_ahora(ahora) == esperado
+
+
+@pytest.mark.parametrize("hora", [0, 1, 3, 5, 23])
+def test_fuera_de_ventana_horaria_no_dispara_aunque_sea_minuto_00(hora):
+    ahora = datetime(2026, 8, 12, hora, 0, tzinfo=ZoneInfo("America/Bogota"))
+    assert crypto_scheduler.debe_ejecutar_ahora(ahora) is None
 
 
 @pytest.mark.parametrize("hora,minuto", [(6, 1), (9, 59), (12, 30), (23, 45)])
