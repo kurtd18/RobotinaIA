@@ -18,6 +18,12 @@ class Settings:
     # no se pierdan en cada redeploy.
     DATABASE_NAME = os.getenv("DATABASE_PATH", "robotinaia.db")
 
+    # Umbral de score a partir del cual AlertEngine.get_recommendation()
+    # devuelve "OPORTUNIDAD" en vez de "REVISAR". Satisface el contrato ya
+    # existente en tests/test_alert.py (65 -> REVISAR, 95 -> OPORTUNIDAD),
+    # coherente con el umbral >=50 = REVISAR ya definido en alert_engine.py.
+    UMBRAL_SENAL = 80
+
     # La estrategia RSI(2) Connors revisa cada INTERVALO_REVISION_MINUTOS
     # minutos, solo dentro de la ventana HORA_INICIO_REVISION a
     # HORA_FIN_REVISION (America/Bogota) - fuera de esa ventana no hace
