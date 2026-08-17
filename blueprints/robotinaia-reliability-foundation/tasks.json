@@ -138,7 +138,7 @@
     ],
     "checkpoint": "step-07-migration-parity-verified",
     "files": ["migrations/0000_apply_constraints.py", "tests/test_migration_row_counts.py"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E3-T1",

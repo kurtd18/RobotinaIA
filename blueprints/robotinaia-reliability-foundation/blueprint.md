@@ -417,10 +417,13 @@ token's specific value.
    new token. This immediately invalidates `8712940547:AAGT...`.
 2. Update the real `.env` (never committed) with the new token.
 3. Scrub the leaked token from git history. Recommended: `git filter-repo` (not BFG — `filter-repo`
-   is the currently maintained tool):
+   is the currently maintained tool). Substitute the actual leaked token value (the one that was in
+   `.env.example` before step 01 — check `git log -p -- .env.example` if you need to recover it) for
+   `<LEAKED_TOKEN_VALUE>` below; it is deliberately not written out here so this file itself never
+   carries the secret into git history:
    ```bash
    pip install git-filter-repo
-   git filter-repo --replace-text <(echo 'REDACTED==>REDACTED')
+   git filter-repo --replace-text <(echo '<LEAKED_TOKEN_VALUE>==>REDACTED')
    ```
    This rewrites history — coordinate with anyone else who has a clone, and force-push only after
    confirming the new history is correct locally. **The build agent must never run this command.**
