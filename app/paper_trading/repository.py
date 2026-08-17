@@ -12,27 +12,7 @@ de órdenes en ningún punto de este módulo.
 from datetime import datetime
 
 from app.database.connection import get_connection
-
-SCHEMA_PAPER_POSITIONS = """
-CREATE TABLE IF NOT EXISTS paper_positions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    symbol TEXT NOT NULL,
-    direction TEXT NOT NULL,
-    entry_price REAL NOT NULL,
-    stop_price REAL NOT NULL,
-    target_price REAL NOT NULL,
-    size_usdt REAL NOT NULL,
-    quantity REAL NOT NULL,
-    opened_at TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'OPEN',
-    close_price REAL,
-    closed_at TEXT,
-    close_reason TEXT,
-    pnl_usdt REAL,
-    pnl_pct REAL,
-    scoring_id INTEGER
-)
-"""
+from app.database.schema import SCHEMA_PAPER_POSITIONS
 
 
 def crear_tabla():

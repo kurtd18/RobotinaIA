@@ -1,0 +1,471 @@
+[
+  {
+    "id": "E1-T1",
+    "title": "Scrub .env.example, document token rotation",
+    "epic": "01-security-blockers",
+    "dependencies": [],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `grep -c '8712940547' .env.example` runs THE SYSTEM SHALL exit with status 1 (grep's not-found status).",
+      "WHEN `.env.example` is read THE SYSTEM SHALL show `TELEGRAM_BOT_TOKEN=your-telegram-bot-token-here` and `TELEGRAM_CHAT_ID=your-telegram-chat-id-here` verbatim.",
+      "WHEN every `.py` file is grepped for the leaked token string THE SYSTEM SHALL return zero matches."
+    ],
+    "verify": [
+      "grep -c '8712940547' .env.example; test $? -eq 1",
+      "grep -q 'your-telegram-bot-token-here' .env.example",
+      "! grep -rn '8712940547' --include=*.py ."
+    ],
+    "checkpoint": "step-01-security-env-scrub",
+    "files": [".env.example"],
+    "status": "done"
+  },
+  {
+    "id": "E1-T2",
+    "title": "Add secret-pattern guard script",
+    "epic": "01-security-blockers",
+    "dependencies": ["E1-T1"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `python scripts/check_no_secrets.py` runs against the current repo THE SYSTEM SHALL exit 0.",
+      "WHEN a Telegram-token-shaped string is staged in a temp fixture file THE SYSTEM SHALL cause the script to exit 1 and print the fixture's path.",
+      "WHEN `.env.example` contains only placeholder values THE SYSTEM SHALL be reported clean by the script."
+    ],
+    "verify": [
+      "pytest tests/test_check_no_secrets.py",
+      "python scripts/check_no_secrets.py; test $? -eq 0"
+    ],
+    "checkpoint": "step-02-secret-guard",
+    "files": ["scripts/check_no_secrets.py", "tests/test_check_no_secrets.py"],
+    "status": "done"
+  },
+  {
+    "id": "E2-T1",
+    "title": "Fix AlertEngine.UMBRAL_SENAL AttributeError",
+    "epic": "02-database-integrity-and-concurrency",
+    "dependencies": [],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `pytest tests/test_alert.py` runs THE SYSTEM SHALL exit 0 with 5 passed, 0 failed.",
+      "WHEN `AlertEngine().get_recommendation(80)` is called THE SYSTEM SHALL return \"OPORTUNIDAD\".",
+      "WHEN `AlertEngine().get_recommendation(79)` is called THE SYSTEM SHALL return \"REVISAR\"."
+    ],
+    "verify": ["pytest tests/test_alert.py -v"],
+    "checkpoint": "step-03-fix-umbral-senal",
+    "files": ["app/core/settings.py"],
+    "status": "done"
+  },
+  {
+    "id": "E2-T2",
+    "title": "Add tests/conftest.py DB isolation fixture",
+    "epic": "02-database-integrity-and-concurrency",
+    "dependencies": [],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN a test requests the `db_path` fixture and writes a row THE SYSTEM SHALL persist it only to the temp file, never to robotinaia.db.",
+      "WHEN `pytest tests/` runs the full suite THE SYSTEM SHALL exit 0 with no sqlite3.OperationalError about a locked or missing table.",
+      "WHEN two tests both request `db_path` THE SYSTEM SHALL give each its own isolated file with no cross-test data leakage."
+    ],
+    "verify": [
+      "sha1sum robotinaia.db > /tmp/before.sha1 2>/dev/null || echo no-db-yet > /tmp/before.sha1",
+      "pytest tests/ -q",
+      "sha1sum robotinaia.db > /tmp/after.sha1 2>/dev/null || echo no-db-yet > /tmp/after.sha1",
+      "diff /tmp/before.sha1 /tmp/after.sha1"
+    ],
+    "checkpoint": "step-04-conftest-db-isolation",
+    "files": ["tests/conftest.py"],
+    "status": "done"
+  },
+  {
+    "id": "E2-T3",
+    "title": "WAL mode + busy_timeout on every connection",
+    "epic": "02-database-integrity-and-concurrency",
+    "dependencies": ["E2-T2"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `get_connection()` is called THE SYSTEM SHALL return a connection with PRAGMA journal_mode reporting wal.",
+      "WHEN `get_connection()` is called THE SYSTEM SHALL return a connection with PRAGMA busy_timeout reporting 5000.",
+      "WHEN two threads open connections concurrently and one holds a write transaction for 200ms THE SYSTEM SHALL have the second connection succeed once the first commits.",
+      "WHEN PRAGMA foreign_keys is queried on a fresh connection THE SYSTEM SHALL report 1."
+    ],
+    "verify": [
+      "cp robotinaia.db robotinaia.db.backup-step-05 2>/dev/null || echo no-live-db",
+      "pytest tests/test_connection.py -v",
+      "sqlite3 robotinaia.db \"PRAGMA journal_mode;\""
+    ],
+    "checkpoint": "step-05-wal-busy-timeout",
+    "files": ["app/database/connection.py", "tests/test_connection.py"],
+    "status": "done"
+  },
+  {
+    "id": "E2-T4",
+    "title": "Consolidate schema, add FK/CHECK constraints, user_version tracking",
+    "epic": "02-database-integrity-and-concurrency",
+    "dependencies": ["E2-T3"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `sqlite3 robotinaia.db \"PRAGMA foreign_key_check;\"` runs after migration THE SYSTEM SHALL return no rows.",
+      "WHEN an INSERT into portfolio_decisions references a non-existent portfolio.id THE SYSTEM SHALL raise sqlite3.IntegrityError.",
+      "WHEN an INSERT into signals uses a signal value outside ('PENDING','EXECUTED','SOLD','EXPIRED') THE SYSTEM SHALL raise sqlite3.IntegrityError.",
+      "WHEN create_tables() runs twice in a row THE SYSTEM SHALL be idempotent with PRAGMA user_version unchanged on the second run.",
+      "WHEN `sqlite3 robotinaia.db \"PRAGMA user_version;\"` runs THE SYSTEM SHALL report a value >= 1."
+    ],
+    "verify": [
+      "cp robotinaia.db robotinaia.db.backup-step-06",
+      "pytest tests/test_schema_constraints.py -v",
+      "sqlite3 robotinaia.db \"PRAGMA foreign_key_check;\"",
+      "sqlite3 robotinaia.db \"PRAGMA user_version;\""
+    ],
+    "checkpoint": "step-06-schema-consolidation",
+    "files": ["app/database/schema.py", "app/database/migrations.py", "app/scheduler/repository.py", "app/paper_trading/repository.py"],
+    "status": "done"
+  },
+  {
+    "id": "E2-T5",
+    "title": "Migration script applying constraints with row-count parity",
+    "epic": "02-database-integrity-and-concurrency",
+    "dependencies": ["E2-T4"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `python migrations/0000_apply_constraints.py` runs against a copy of the live DB THE SYSTEM SHALL report identical row counts per table before/after and exit 0.",
+      "WHEN run against a DB with an orphaned portfolio_decisions row THE SYSTEM SHALL exit 1 and report which row violates the new FK.",
+      "WHEN `pytest tests/test_migration_row_counts.py` runs THE SYSTEM SHALL exit 0."
+    ],
+    "verify": [
+      "cp robotinaia.db robotinaia.db.backup-step-07",
+      "cp robotinaia.db /tmp/robotinaia_migration_test.db 2>/dev/null || sqlite3 /tmp/robotinaia_migration_test.db \"SELECT 1;\"",
+      "python migrations/0000_apply_constraints.py",
+      "pytest tests/test_migration_row_counts.py -v"
+    ],
+    "checkpoint": "step-07-migration-parity-verified",
+    "files": ["migrations/0000_apply_constraints.py", "tests/test_migration_row_counts.py"],
+    "status": "pending"
+  },
+  {
+    "id": "E3-T1",
+    "title": "Add YahooProvider with retry/backoff",
+    "epic": "03-unified-market-data-provider",
+    "dependencies": [],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN YahooProvider().get_stock(\"AAPL\") is called against a working network THE SYSTEM SHALL return a Stock with a positive price.",
+      "WHEN yf.Ticker.history is mocked to raise on the first 2 calls and succeed on the 3rd THE SYSTEM SHALL return successfully after exactly 3 calls.",
+      "WHEN yf.Ticker.history is mocked to always raise THE SYSTEM SHALL raise YahooProviderError after exactly MAX_REINTENTOS attempts.",
+      "WHEN yf.Ticker.history returns an empty DataFrame THE SYSTEM SHALL raise YahooProviderError."
+    ],
+    "verify": ["pytest tests/test_yahoo_provider.py -v"],
+    "checkpoint": "step-08-yahoo-provider",
+    "files": ["app/providers/yahoo_provider.py", "tests/test_yahoo_provider.py"],
+    "status": "pending"
+  },
+  {
+    "id": "E3-T2",
+    "title": "Wire rsi2_connors.py to YahooProvider",
+    "epic": "03-unified-market-data-provider",
+    "dependencies": ["E3-T1"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN _cargar_datos_diarios(\"AAPL\") is called THE SYSTEM SHALL return the same DataFrame shape it returned before this change, verified against a recorded fixture.",
+      "WHEN the underlying data source fails transiently THE SYSTEM SHALL retry via YahooProvider's backoff instead of failing on the first attempt.",
+      "WHEN ejecutar_rsi2_connors() runs against a fixture where one symbol's fetch fails permanently THE SYSTEM SHALL log and continue to the next symbol.",
+      "WHEN `pytest tests/test_score.py` is re-run THE SYSTEM SHALL still pass."
+    ],
+    "verify": [
+      "pytest tests/test_rsi2_connors_provider.py -v",
+      "pytest tests/test_score.py -v"
+    ],
+    "checkpoint": "step-09-rsi2-yahoo-provider-wired",
+    "files": ["app/strategies/rsi2_connors.py", "tests/test_rsi2_connors_provider.py"],
+    "status": "pending"
+  },
+  {
+    "id": "E4-T1",
+    "title": "Add asset_class/normalized_symbol/fee columns to portfolio",
+    "epic": "04-unified-portfolio-and-pnl",
+    "dependencies": ["E2-T5"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN the migration runs against a DB containing the current BTC-USD id=2 row THE SYSTEM SHALL set asset_class='crypto', normalized_symbol='BTC' on that row.",
+      "WHEN the migration runs against existing stock rows THE SYSTEM SHALL set asset_class='stock', normalized_symbol equal to the existing symbol.",
+      "WHEN an INSERT into portfolio supplies asset_class='option' THE SYSTEM SHALL raise sqlite3.IntegrityError.",
+      "WHEN the migration runs twice THE SYSTEM SHALL be idempotent."
+    ],
+    "verify": [
+      "cp robotinaia.db robotinaia.db.backup-step-10",
+      "pytest tests/test_schema_constraints.py -k portfolio_asset_class -v",
+      "sqlite3 robotinaia.db \"SELECT symbol, asset_class, normalized_symbol FROM portfolio;\""
+    ],
+    "checkpoint": "step-10-portfolio-schema-delta",
+    "files": ["app/database/schema.py", "app/database/migrations.py", "tests/test_schema_constraints.py"],
+    "status": "pending"
+  },
+  {
+    "id": "E4-T2",
+    "title": "Add FeeConfig strategy interface",
+    "epic": "04-unified-portfolio-and-pnl",
+    "dependencies": [],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN STOCK_FEE_CONFIG.apply(100.0, 10, 50.0) is called with defaults THE SYSTEM SHALL return (100.0, False).",
+      "WHEN a FlatPercentageFeeConfig(fee_pct=0.1, configured=True) is applied to a 100.0 gross P&L THE SYSTEM SHALL return a value less than 100.0 and configured=True.",
+      "WHEN fee_pct is negative THE SYSTEM SHALL raise ValueError at construction."
+    ],
+    "verify": ["pytest tests/test_fee_config.py -v"],
+    "checkpoint": "step-11-fee-config",
+    "files": ["app/services/fee_config.py", "tests/test_fee_config.py"],
+    "status": "pending"
+  },
+  {
+    "id": "E4-T3",
+    "title": "Add portfolio_service.py: unified buy/sell/trailing-stop/P&L",
+    "epic": "04-unified-portfolio-and-pnl",
+    "dependencies": ["E4-T1", "E4-T2"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN add_position(\"BTC-USD\", 0.01, 50000, asset_class=\"crypto\") is called THE SYSTEM SHALL insert a row with normalized_symbol='BTC'.",
+      "WHEN sell_position is called under the default unconfigured FeeConfig THE SYSTEM SHALL compute P&L identically to (sell_price - buy_price) * quantity and set fees_included=0.",
+      "WHEN price crosses target_price in a simulated trailing-stop cycle THE SYSTEM SHALL raise stop_loss to the old target_price and raise target_price by exactly 3%.",
+      "WHEN trailing-stop is applied twice in sequence THE SYSTEM SHALL compound correctly.",
+      "WHEN sell_position is called with a configured FeeConfig(fee_pct=0.001, configured=True) THE SYSTEM SHALL report fees_included=1 and a strictly lower P&L than the fee-unaware calculation for a profitable trade."
+    ],
+    "verify": ["pytest tests/test_portfolio_service.py -v"],
+    "checkpoint": "step-12-portfolio-service",
+    "files": ["app/services/portfolio_service.py", "app/services/symbol_normalization.py", "tests/test_portfolio_service.py"],
+    "status": "pending"
+  },
+  {
+    "id": "E4-T4",
+    "title": "Migrate portfolio + paper_positions into unified schema, row-count parity",
+    "epic": "04-unified-portfolio-and-pnl",
+    "dependencies": ["E4-T3"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN the migration runs against a copy of the live DB THE SYSTEM SHALL report portfolio row count after equal to portfolio before plus paper_positions before, and exit 0.",
+      "WHEN the migration runs against a fixture with 3 paper_positions rows and 2 portfolio rows THE SYSTEM SHALL produce exactly 5 portfolio rows after.",
+      "WHEN a paper_positions row has an unrecognized symbol THE SYSTEM SHALL log a warning, skip that row, and report it in the final summary.",
+      "WHEN the migration is run a second time THE SYSTEM SHALL detect already-migrated rows and skip them."
+    ],
+    "verify": [
+      "cp robotinaia.db robotinaia.db.backup-step-13",
+      "cp robotinaia.db /tmp/migration_test.db",
+      "python migrations/0001_portfolio_unify.py",
+      "pytest tests/test_portfolio_migration.py -v"
+    ],
+    "checkpoint": "step-13-portfolio-migration",
+    "files": ["migrations/0001_portfolio_unify.py", "tests/test_portfolio_migration.py"],
+    "status": "pending"
+  },
+  {
+    "id": "E4-T5",
+    "title": "Tooling to resolve stale BTC-USD position (operator chooses)",
+    "epic": "04-unified-portfolio-and-pnl",
+    "dependencies": ["E4-T4", "E3-T2"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `python migrations/0002_resolve_stale_btc.py` runs with no flags THE SYSTEM SHALL print both options and exit 2, taking no DB action.",
+      "WHEN run with --action=migrate THE SYSTEM SHALL leave the position status OPEN and set its asset_class/normalized_symbol per the unified schema.",
+      "WHEN run with --action=close but without --confirm-close THE SYSTEM SHALL exit 2 and take no DB action.",
+      "WHEN run with --action=close --confirm-close against a test fixture THE SYSTEM SHALL set status='CLOSED' with a sell_price from YahooProvider and a non-null sell_date."
+    ],
+    "verify": [
+      "cp robotinaia.db robotinaia.db.backup-step-14",
+      "python migrations/0002_resolve_stale_btc.py; test $? -eq 2",
+      "pytest tests/test_resolve_stale_btc.py -v"
+    ],
+    "checkpoint": "step-14-stale-btc-tooling",
+    "files": ["migrations/0002_resolve_stale_btc.py", "tests/test_resolve_stale_btc.py"],
+    "status": "pending"
+  },
+  {
+    "id": "E4-T6",
+    "title": "Add old-vs-new P&L parity harness",
+    "epic": "04-unified-portfolio-and-pnl",
+    "dependencies": ["E4-T4"],
+    "priority": "p1",
+    "acceptance": [
+      "WHEN the harness runs against the migrated DB THE SYSTEM SHALL report 0 mismatches across every CLOSED position and exit 0.",
+      "WHEN a mismatch is injected in a test fixture THE SYSTEM SHALL detect it, print the row id and both values, and exit 1."
+    ],
+    "verify": [
+      "python scripts/parity_harness_portfolio.py",
+      "pytest tests/test_parity_harness.py -v"
+    ],
+    "checkpoint": "step-15-parity-harness",
+    "files": ["scripts/parity_harness_portfolio.py", "tests/test_parity_harness.py"],
+    "status": "pending"
+  },
+  {
+    "id": "E5-T1",
+    "title": "Add persisted alert state machine",
+    "epic": "05-alert-reliability",
+    "dependencies": ["E4-T3"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN record_trigger is called for a position/alert_type with no existing row THE SYSTEM SHALL insert status='first_trigger' and should_notify SHALL return True.",
+      "WHEN record_trigger is called again within 6 hours at a price within 0.5% of the stored extreme THE SYSTEM SHALL leave status unchanged and should_notify SHALL return False.",
+      "WHEN record_trigger is called with a price worse than the stored extreme by more than 0.5% THE SYSTEM SHALL set status='new_extreme' and should_notify SHALL return True.",
+      "WHEN more than 6 hours have elapsed since last_notified_at with no new extreme THE SYSTEM SHALL set status='periodic_reminder' and should_notify SHALL return True.",
+      "WHEN resolve is called THE SYSTEM SHALL set status='resolved' with resolved_at non-null, and a subsequent record_trigger SHALL start a fresh first_trigger cycle."
+    ],
+    "verify": ["pytest tests/test_alert_state.py -v"],
+    "checkpoint": "step-16-alert-state-machine",
+    "files": ["app/alerts/alert_state.py", "tests/test_alert_state.py"],
+    "status": "pending"
+  },
+  {
+    "id": "E5-T2",
+    "title": "Wire portfolio_alerts.py to the alert state machine",
+    "epic": "05-alert-reliability",
+    "dependencies": ["E5-T1"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN a position's price stays below stop_loss for two cycles more than 6 hours apart with no material change THE SYSTEM SHALL send exactly 2 Telegram notifications.",
+      "WHEN price moves to a new low below the stop by more than 0.5% between cycles THE SYSTEM SHALL send an immediate new_extreme notification.",
+      "WHEN price recovers above stop_loss THE SYSTEM SHALL call resolve, and a subsequent breach THE SYSTEM SHALL notify immediately."
+    ],
+    "verify": ["pytest tests/test_portfolio_alerts_state.py -v"],
+    "checkpoint": "step-17-portfolio-alerts-state-wired",
+    "files": ["app/alerts/portfolio_alerts.py", "tests/test_portfolio_alerts_state.py"],
+    "status": "pending"
+  },
+  {
+    "id": "E6-T1",
+    "title": "Add stock scheduler idempotency table",
+    "epic": "06-scheduler-resilience",
+    "dependencies": ["E2-T4"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN intentar_registrar_ejecucion(\"2026-08-15\", \"09:00\") is called twice THE SYSTEM SHALL return True the first time and False the second.",
+      "WHEN called for two different hora_programada values on the same fecha THE SYSTEM SHALL return True for both."
+    ],
+    "verify": ["pytest tests/test_stock_scheduler_repository.py -v"],
+    "checkpoint": "step-18-stock-scheduler-idempotency",
+    "files": ["app/scheduler/stock_scheduler_repository.py", "tests/test_stock_scheduler_repository.py"],
+    "status": "pending"
+  },
+  {
+    "id": "E6-T2",
+    "title": "Supervise stock scheduler thread, capped restart + Telegram escalation",
+    "epic": "06-scheduler-resilience",
+    "dependencies": ["E6-T1"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN target() raises on its first 2 calls and succeeds on the 3rd THE SYSTEM SHALL call it exactly 3 times with increasing sleep between attempts, and never send the escalation alert.",
+      "WHEN target() always raises THE SYSTEM SHALL call it exactly max_restarts times, then send exactly one Telegram escalation message and stop calling target() again.",
+      "WHEN the escalation fires THE SYSTEM SHALL include the exception type/message and restart count in the Telegram message.",
+      "WHEN run_all.py starts THE SYSTEM SHALL launch the stock scheduler through run_supervised."
+    ],
+    "verify": ["pytest tests/test_stock_scheduler_supervisor.py -v"],
+    "checkpoint": "step-19-stock-scheduler-supervised",
+    "files": ["app/scheduler/supervisor.py", "run_all.py", "tests/test_stock_scheduler_supervisor.py"],
+    "status": "pending"
+  },
+  {
+    "id": "E7-T1",
+    "title": "Add unified app/notifications/commands.py",
+    "epic": "07-telegram-dashboard-consolidation",
+    "dependencies": ["E4-T3"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN portfolio_command() is called with open positions in both asset classes THE SYSTEM SHALL list both stock and crypto positions in one output.",
+      "WHEN comprar_command is called THE SYSTEM SHALL create a position via portfolio_service.add_position, not portfolio.add_position.",
+      "WHEN cripto_command() is called THE SYSTEM SHALL return output identical in shape to the current crypto_telegram_commands.py implementation."
+    ],
+    "verify": ["pytest tests/test_commands.py -v"],
+    "checkpoint": "step-20-unified-commands",
+    "files": ["app/notifications/commands.py", "tests/test_commands.py"],
+    "status": "pending"
+  },
+  {
+    "id": "E7-T2",
+    "title": "Cut over telegram_bot.py to unified commands module",
+    "epic": "07-telegram-dashboard-consolidation",
+    "dependencies": ["E7-T1"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN telegram_bot.py is inspected THE SYSTEM SHALL show zero import statements referencing telegram_commands or crypto_telegram_commands.",
+      "WHEN the bot's registered command handlers are enumerated THE SYSTEM SHALL show /portfolio, /comprar, /vender, /mantener, /cripto all pointing at app.notifications.commands functions.",
+      "WHEN `pytest tests/` runs the full suite THE SYSTEM SHALL exit 0."
+    ],
+    "verify": [
+      "pytest tests/test_telegram_bot_registration.py -v",
+      "pytest tests/ -q"
+    ],
+    "checkpoint": "step-21-telegram-bot-cutover",
+    "files": ["telegram_bot.py", "tests/test_telegram_bot_registration.py"],
+    "status": "pending"
+  },
+  {
+    "id": "E7-T3",
+    "title": "Route dashboard through signal_query_service",
+    "epic": "07-telegram-dashboard-consolidation",
+    "dependencies": ["E2-T4"],
+    "priority": "p1",
+    "acceptance": [
+      "WHEN listar_senales() is called against a fixture DB with 3 signals THE SYSTEM SHALL return a DataFrame with exactly 3 rows and columns id, symbol, score, signal, price, timestamp.",
+      "WHEN dashboard.py's source is inspected THE SYSTEM SHALL show zero inline SELECT statements.",
+      "WHEN the dashboard boots against an empty DB THE SYSTEM SHALL render the 'No existen señales todavía.' warning path unchanged."
+    ],
+    "verify": [
+      "pytest tests/test_signal_query_service.py -v",
+      "! grep -q SELECT app/dashboard/dashboard.py"
+    ],
+    "checkpoint": "step-22-dashboard-service-layer",
+    "files": ["app/dashboard/dashboard.py", "app/services/signal_query_service.py", "tests/test_signal_query_service.py"],
+    "status": "pending"
+  },
+  {
+    "id": "E8-T1",
+    "title": "Delete confirmed dead code (scoring.py, stats.py, bollinger.py)",
+    "epic": "08-legacy-decommission",
+    "dependencies": [],
+    "priority": "p1",
+    "acceptance": [
+      "WHEN the reference-check grep runs before deletion THE SYSTEM SHALL return zero matches.",
+      "WHEN `pytest tests/` runs after deletion THE SYSTEM SHALL exit 0.",
+      "WHEN `python -c \"import main; import run_all\"` runs after deletion THE SYSTEM SHALL exit 0."
+    ],
+    "verify": [
+      "! grep -rln \"import scoring\\|from scoring\\|import stats\\|from stats\\|import bollinger\\|from bollinger\" main.py run_all.py app/ tests/",
+      "pytest tests/ -q"
+    ],
+    "checkpoint": "step-23-dead-code-removed",
+    "files": ["scoring.py", "stats.py", "bollinger.py"],
+    "status": "pending"
+  },
+  {
+    "id": "E8-T2",
+    "title": "Confirm zero remaining imports of legacy modules (observation gate)",
+    "epic": "08-legacy-decommission",
+    "dependencies": ["E7-T2", "E7-T3"],
+    "priority": "p1",
+    "acceptance": [
+      "WHEN every remaining source file is grepped for imports of portfolio, telegram_commands, or signal_manager THE SYSTEM SHALL return zero matches."
+    ],
+    "verify": [
+      "! grep -rln \"^import portfolio\\|^from portfolio\\|import telegram_commands\\|from telegram_commands\\|import signal_manager\\|from signal_manager\" app/ run_all.py main.py telegram_bot.py"
+    ],
+    "checkpoint": "step-24-legacy-import-free",
+    "files": [],
+    "status": "pending"
+  },
+  {
+    "id": "E8-T3",
+    "title": "Remove legacy portfolio.py, telegram_commands.py, signal_manager.py",
+    "epic": "08-legacy-decommission",
+    "dependencies": ["E8-T2"],
+    "priority": "p2",
+    "acceptance": [
+      "WHEN `pytest tests/` runs after deletion THE SYSTEM SHALL exit 0.",
+      "WHEN `python -c \"import run_all; import telegram_bot; import main\"` runs THE SYSTEM SHALL exit 0.",
+      "WHEN portfolio.py, telegram_commands.py, signal_manager.py are checked THE SYSTEM SHALL report all three as non-existent."
+    ],
+    "verify": [
+      "pytest tests/ -q",
+      "python -c \"import run_all; import telegram_bot; import main\"",
+      "! ls portfolio.py telegram_commands.py signal_manager.py 2>/dev/null"
+    ],
+    "checkpoint": "step-25-legacy-decommissioned",
+    "files": ["portfolio.py", "telegram_commands.py", "signal_manager.py"],
+    "status": "pending"
+  }
+]

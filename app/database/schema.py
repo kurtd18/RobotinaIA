@@ -1,8 +1,21 @@
 """
 Definición del esquema de base de datos de RobotinaIA.
+
+Fuente única de verdad para el DDL de todas las tablas. scheduler_runs
+y paper_positions vivían como constantes propias en
+app/scheduler/repository.py y app/paper_trading/repository.py; ahora
+se definen aquí y esos módulos importan la constante en vez de
+mantener su propia copia (sus funciones crear_tabla() siguen abriendo
+su propia conexión, sin cambios, para no romper los tests que
+monkeypatchean repository.get_connection directamente).
+
+stock_scheduler_runs y alert_state son esquema inicial para las
+Épicas 6 y 5 de la migración de confiabilidad - todavía sin código que
+las use.
 """
 
 from .connection import get_connection
+from .migrations import apply_migrations
 
 SCHEMA_SIGNALS = """
 CREATE TABLE IF NOT EXISTS signals (
@@ -51,6 +64,73 @@ CREATE TABLE IF NOT EXISTS portfolio_decisions (
 )
 """
 
+# Movida desde app/scheduler/repository.py (Fase 10) - misma definición,
+# ahora con esta como única fuente de verdad.
+SCHEMA_SCHEDULER_RUNS = """
+CREATE TABLE IF NOT EXISTS scheduler_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fecha TEXT NOT NULL,
+    hora_programada TEXT NOT NULL,
+    ejecutado_en TEXT NOT NULL,
+    UNIQUE(fecha, hora_programada)
+)
+"""
+
+# Movida desde app/paper_trading/repository.py (Fase 8) - misma
+# definición, ahora con esta como única fuente de verdad.
+SCHEMA_PAPER_POSITIONS = """
+CREATE TABLE IF NOT EXISTS paper_positions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    symbol TEXT NOT NULL,
+    direction TEXT NOT NULL,
+    entry_price REAL NOT NULL,
+    stop_price REAL NOT NULL,
+    target_price REAL NOT NULL,
+    size_usdt REAL NOT NULL,
+    quantity REAL NOT NULL,
+    opened_at TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'OPEN',
+    close_price REAL,
+    closed_at TEXT,
+    close_reason TEXT,
+    pnl_usdt REAL,
+    pnl_pct REAL,
+    scoring_id INTEGER
+)
+"""
+
+# Esquema inicial para Épica 6 (supervisor del scheduler de acciones,
+# idempotencia). Mismo patrón que scheduler_runs (cripto). Si Épica 6
+# necesita columnas adicionales, se agregan vía una migración nueva en
+# migrations.py, no editando esta constante.
+SCHEMA_STOCK_SCHEDULER_RUNS = """
+CREATE TABLE IF NOT EXISTS stock_scheduler_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fecha TEXT NOT NULL,
+    hora_programada TEXT NOT NULL,
+    ejecutado_en TEXT NOT NULL,
+    UNIQUE(fecha, hora_programada)
+)
+"""
+
+# Esquema inicial para Épica 5 (máquina de estados de alertas:
+# first_trigger / periodic_reminder / new_extreme / resolved). Sin FK a
+# portfolio.id todavía a propósito: cuando esta tabla se crea, Épica 4
+# todavía no unificó el modelo de portfolio - la FK se agrega en la
+# migración que corresponda cuando llegue esa épica, no aquí.
+SCHEMA_ALERT_STATE = """
+CREATE TABLE IF NOT EXISTS alert_state (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    position_id INTEGER NOT NULL,
+    alert_type TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'first_trigger',
+    extreme_price REAL,
+    first_triggered_at TEXT NOT NULL,
+    last_notified_at TEXT,
+    resolved_at TEXT
+)
+"""
+
 
 def _agregar_columna_si_no_existe(cursor, tabla, columna, definicion):
     """Agrega una columna a una tabla existente si todavía no la tiene.
@@ -79,8 +159,15 @@ def create_tables():
     cursor.execute(SCHEMA_PORTFOLIO)
     cursor.execute(SCHEMA_STATS)
     cursor.execute(SCHEMA_PORTFOLIO_DECISIONS)
+    cursor.execute(SCHEMA_SCHEDULER_RUNS)
+    cursor.execute(SCHEMA_PAPER_POSITIONS)
+    cursor.execute(SCHEMA_STOCK_SCHEDULER_RUNS)
+    cursor.execute(SCHEMA_ALERT_STATE)
 
     _agregar_columna_si_no_existe(cursor, "portfolio", "alerta_stop_enviada", "INTEGER DEFAULT 0")
 
     conn.commit()
+
+    apply_migrations(conn)
+
     conn.close()

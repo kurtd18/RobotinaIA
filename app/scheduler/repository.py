@@ -13,16 +13,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 from app.database.connection import get_connection
-
-SCHEMA_SCHEDULER_RUNS = """
-CREATE TABLE IF NOT EXISTS scheduler_runs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    fecha TEXT NOT NULL,
-    hora_programada TEXT NOT NULL,
-    ejecutado_en TEXT NOT NULL,
-    UNIQUE(fecha, hora_programada)
-)
-"""
+from app.database.schema import SCHEMA_SCHEDULER_RUNS
 
 
 def crear_tabla():
