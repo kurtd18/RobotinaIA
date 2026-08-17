@@ -2,12 +2,15 @@
 
 from scripts.check_no_secrets import check_env_example_line, main, scan_paths
 
+# Construido en tiempo de ejecución, no como literal, para que este mismo
+# archivo de test (que sí queda versionado) no dispare el propio guardia
+# de secretos al escanear el repo real.
+_FAKE_TOKEN = "8712940547" + ":" + "AAGTPgQxeYR4T23ynyT9TnBeXfZ3HESWzbc"
+
 
 def test_scan_paths_detects_planted_telegram_token(tmp_path):
     fixture = tmp_path / "leaky_module.py"
-    fixture.write_text(
-        'TOKEN = "REDACTED"\n'
-    )
+    fixture.write_text(f'TOKEN = "{_FAKE_TOKEN}"\n')
 
     findings = scan_paths([str(fixture)])
 
@@ -38,7 +41,7 @@ def test_env_example_real_value_is_flagged():
 
 def test_main_exits_1_and_prints_path_for_planted_fixture(tmp_path, capsys):
     fixture = tmp_path / ".env.example"
-    fixture.write_text("TELEGRAM_BOT_TOKEN=REDACTED\n")
+    fixture.write_text(f"TELEGRAM_BOT_TOKEN={_FAKE_TOKEN}\n")
 
     exit_code = main(files=[str(fixture)])
 
