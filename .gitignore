@@ -19,6 +19,7 @@ logs/
 
 # Base de datos SQLite
 *.db
+*.db.backup-*
 
 # Archivos temporales
 *.tmp
