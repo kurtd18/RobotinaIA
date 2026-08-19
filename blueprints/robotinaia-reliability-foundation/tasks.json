@@ -155,7 +155,7 @@
     "verify": ["pytest tests/test_yahoo_provider.py -v"],
     "checkpoint": "step-08-yahoo-provider",
     "files": ["app/providers/yahoo_provider.py", "tests/test_yahoo_provider.py"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E3-T2",
