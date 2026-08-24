@@ -28,6 +28,14 @@ CREATE TABLE IF NOT EXISTS signals (
 )
 """
 
+# Esta es la forma "base" de portfolio, previa a las migraciones. Las
+# columnas asset_class/normalized_symbol/fee_pct_applied/fees_included
+# (Épica 4, unificación de portfolio) se agregan vía
+# app.database.migrations._migration_002_portfolio_asset_class, no
+# acá - misma razón que el CHECK de status: SQLite no permite agregar
+# CHECK ni columnas NOT NULL calculadas por fila con ALTER TABLE, así
+# que el camino único hacia el esquema final es la migración versionada,
+# tanto para bases nuevas como viejas.
 SCHEMA_PORTFOLIO = """
 CREATE TABLE IF NOT EXISTS portfolio (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -196,7 +196,7 @@
     ],
     "checkpoint": "step-10-portfolio-schema-delta",
     "files": ["app/database/schema.py", "app/database/migrations.py", "tests/test_schema_constraints.py"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E4-T2",

@@ -66,8 +66,9 @@ def test_insert_portfolio_with_invalid_status_raises(db_path):
     try:
         try:
             conn.execute(
-                "INSERT INTO portfolio (symbol, quantity, buy_price, buy_date, status) "
-                "VALUES ('AAA', 1, 1.0, '2026-01-01', 'NOT_A_REAL_STATUS');"
+                "INSERT INTO portfolio "
+                "(symbol, quantity, buy_price, buy_date, status, asset_class, normalized_symbol) "
+                "VALUES ('AAA', 1, 1.0, '2026-01-01', 'NOT_A_REAL_STATUS', 'stock', 'AAA');"
             )
             conn.commit()
             assert False, "se esperaba sqlite3.IntegrityError"
@@ -75,6 +76,126 @@ def test_insert_portfolio_with_invalid_status_raises(db_path):
             pass
     finally:
         conn.close()
+
+
+def test_insert_portfolio_asset_class_option_raises(db_path):
+    conn = get_connection()
+    try:
+        try:
+            conn.execute(
+                "INSERT INTO portfolio "
+                "(symbol, quantity, buy_price, buy_date, asset_class, normalized_symbol) "
+                "VALUES ('AAA', 1, 1.0, '2026-01-01', 'option', 'AAA');"
+            )
+            conn.commit()
+            assert False, "se esperaba sqlite3.IntegrityError"
+        except sqlite3.IntegrityError:
+            pass
+    finally:
+        conn.close()
+
+
+def _construir_portfolio_pre_migracion_002(conn):
+    """Recrea la forma de portfolio tal como la deja la migración 1
+    (status con CHECK, pero sin asset_class/normalized_symbol/fee) -
+    el estado "de antes" contra el que corre la migración 2."""
+    conn.execute(
+        """
+        CREATE TABLE portfolio (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            symbol TEXT NOT NULL,
+            quantity INTEGER NOT NULL,
+            buy_price REAL NOT NULL,
+            buy_date TEXT NOT NULL,
+            target_price REAL,
+            stop_loss REAL,
+            status TEXT DEFAULT 'OPEN' CHECK (status IN ('OPEN', 'CLOSED')),
+            sell_price REAL,
+            sell_date TEXT,
+            alerta_stop_enviada INTEGER DEFAULT 0
+        )
+        """
+    )
+    conn.execute("PRAGMA user_version=1;")
+
+
+def test_migration_sets_portfolio_asset_class_crypto_for_btc_usd_row(tmp_path):
+    """La fila BTC-USD (mismo símbolo que id=2 en la base real) debe
+    quedar asset_class='crypto', normalized_symbol='BTC' tras correr la
+    migración 2 - probando la migración en sí, no solo el esquema final."""
+    from app.database.migrations import apply_migrations
+
+    conn = sqlite3.connect(tmp_path / "premig.db")
+    try:
+        _construir_portfolio_pre_migracion_002(conn)
+        conn.execute(
+            "INSERT INTO portfolio (id, symbol, quantity, buy_price, buy_date, status) "
+            "VALUES (2, 'BTC-USD', 1, 118000, '2026-01-01', 'OPEN');"
+        )
+        conn.commit()
+
+        apply_migrations(conn)
+
+        row = conn.execute(
+            "SELECT asset_class, normalized_symbol FROM portfolio WHERE id = 2;"
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert row == ("crypto", "BTC")
+
+
+def test_migration_sets_portfolio_asset_class_stock_for_stock_row(tmp_path):
+    from app.database.migrations import apply_migrations
+
+    conn = sqlite3.connect(tmp_path / "premig.db")
+    try:
+        _construir_portfolio_pre_migracion_002(conn)
+        conn.execute(
+            "INSERT INTO portfolio (symbol, quantity, buy_price, buy_date, status) "
+            "VALUES ('ECOPETROL.CL', 100, 2000, '2026-01-01', 'OPEN');"
+        )
+        conn.commit()
+
+        apply_migrations(conn)
+
+        row = conn.execute(
+            "SELECT asset_class, normalized_symbol FROM portfolio WHERE symbol = 'ECOPETROL.CL';"
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert row == ("stock", "ECOPETROL.CL")
+
+
+def test_migration_002_is_idempotent_when_run_twice(tmp_path):
+    from app.database.migrations import apply_migrations, current_version
+
+    conn = sqlite3.connect(tmp_path / "premig.db")
+    try:
+        _construir_portfolio_pre_migracion_002(conn)
+        conn.execute(
+            "INSERT INTO portfolio (id, symbol, quantity, buy_price, buy_date, status) "
+            "VALUES (2, 'BTC-USD', 1, 118000, '2026-01-01', 'OPEN');"
+        )
+        conn.commit()
+
+        apply_migrations(conn)
+        version_after_first = current_version(conn)
+        row_after_first = conn.execute(
+            "SELECT asset_class, normalized_symbol FROM portfolio WHERE id = 2;"
+        ).fetchone()
+
+        apply_migrations(conn)
+        version_after_second = current_version(conn)
+        row_after_second = conn.execute(
+            "SELECT asset_class, normalized_symbol FROM portfolio WHERE id = 2;"
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert version_after_first == version_after_second
+    assert row_after_first == row_after_second == ("crypto", "BTC")
 
 
 def test_create_tables_is_idempotent_user_version_unchanged(db_path):
