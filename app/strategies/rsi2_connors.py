@@ -31,7 +31,6 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import pandas_ta as ta
-import yfinance as yf
 
 from loguru import logger
 
@@ -42,6 +41,7 @@ from app.database import (
     obtener_senal_pendiente_por_symbol,
     marcar_senal_vendida,
 )
+from app.providers.yahoo_provider import YahooProvider, YahooProviderError
 from app.services.telegram_service import enviar_mensaje_telegram
 
 TZ_BOGOTA = ZoneInfo("America/Bogota")
@@ -60,8 +60,8 @@ UMBRAL_ANOMALIA = 15.0
 
 def _cargar_datos_diarios(symbol):
     try:
-        data = yf.Ticker(symbol).history(period=PERIODO_DESCARGA, interval="1d")
-    except Exception:
+        data = YahooProvider().get_daily_history(symbol, PERIODO_DESCARGA)
+    except YahooProviderError:
         logger.exception(f"{symbol}: error descargando datos")
         return None
 

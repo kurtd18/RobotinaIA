@@ -175,7 +175,7 @@
     ],
     "checkpoint": "step-09-rsi2-yahoo-provider-wired",
     "files": ["app/strategies/rsi2_connors.py", "tests/test_rsi2_connors_provider.py"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E4-T1",
