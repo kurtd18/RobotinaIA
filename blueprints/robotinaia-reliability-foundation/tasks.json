@@ -252,7 +252,7 @@
     ],
     "checkpoint": "step-13-portfolio-migration",
     "files": ["migrations/0001_portfolio_unify.py", "tests/test_portfolio_migration.py"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E4-T5",

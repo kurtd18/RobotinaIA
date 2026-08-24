@@ -173,6 +173,11 @@ def create_tables():
     cursor.execute(SCHEMA_ALERT_STATE)
 
     _agregar_columna_si_no_existe(cursor, "portfolio", "alerta_stop_enviada", "INTEGER DEFAULT 0")
+    # Épica 4 (unificación de portfolio): marca qué filas de
+    # paper_positions ya se migraron a portfolio, para que
+    # migrations/0001_portfolio_unify.py sea idempotente. Nullable, sin
+    # rebuild necesario - additivo como alerta_stop_enviada arriba.
+    _agregar_columna_si_no_existe(cursor, "paper_positions", "migrated_to_portfolio_id", "INTEGER")
 
     conn.commit()
 
