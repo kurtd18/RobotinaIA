@@ -212,7 +212,7 @@
     "verify": ["pytest tests/test_fee_config.py -v"],
     "checkpoint": "step-11-fee-config",
     "files": ["app/services/fee_config.py", "tests/test_fee_config.py"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E4-T3",
