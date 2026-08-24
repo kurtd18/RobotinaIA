@@ -230,7 +230,7 @@
     "verify": ["pytest tests/test_portfolio_service.py -v"],
     "checkpoint": "step-12-portfolio-service",
     "files": ["app/services/portfolio_service.py", "app/services/symbol_normalization.py", "tests/test_portfolio_service.py"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E4-T4",
