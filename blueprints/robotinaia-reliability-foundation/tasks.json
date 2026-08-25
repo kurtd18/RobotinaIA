@@ -325,7 +325,7 @@
     "verify": ["pytest tests/test_portfolio_alerts_state.py -v"],
     "checkpoint": "step-17-portfolio-alerts-state-wired",
     "files": ["app/alerts/portfolio_alerts.py", "tests/test_portfolio_alerts_state.py"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E6-T1",

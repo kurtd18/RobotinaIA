@@ -15,7 +15,8 @@ Las alertas de una posición se detienen automáticamente cuando se cierra
 import yfinance as yf
 from loguru import logger
 
-from portfolio import get_open_positions, actualizar_trailing_stop, marcar_alerta_stop
+from portfolio import get_open_positions, actualizar_trailing_stop
+from app.alerts import alert_state
 from app.services.telegram_service import enviar_mensaje_telegram
 
 TRAILING_STEP_PCT = 0.03  # 3%
@@ -33,6 +34,12 @@ def _revisar_trailing_stop(position_id, symbol, precio_actual, stop_loss, target
         nuevo_target = target_price * (1 + TRAILING_STEP_PCT)
 
         actualizar_trailing_stop(position_id, nuevo_stop, nuevo_target)
+        # Se registra en la máquina de estados de alertas para dejar
+        # historial consistente con stop_loss, pero SIN cambiar el
+        # comportamiento de notificación existente: acá siempre se
+        # avisa en cada escalón (no está roto hoy, solo stop_loss lo
+        # estaba), así que no se pasa por should_notify().
+        alert_state.record_trigger(position_id, "target", precio_actual)
 
         codigo = enviar_mensaje_telegram(
             f"""
@@ -53,18 +60,23 @@ La posición sigue abierta, dejando correr la ganancia.
     return stop_loss, target_price
 
 
-def _revisar_stop_loss(position_id, symbol, precio_actual, stop_loss, alerta_stop_enviada):
-    """Si el precio tocó el stop, alerta con opciones (una sola vez por cruce)."""
+def _revisar_stop_loss(position_id, symbol, precio_actual, stop_loss):
+    """Si el precio tocó el stop, alerta según la máquina de estados de
+    alertas (app/alerts/alert_state.py, Épica 5): notifica de inmediato
+    en el primer cruce y en cada nuevo mínimo, y cada
+    Settings.ALERTA_RECORDATORIO_HORAS si sigue sin resolverse - ya no
+    se avisa una sola vez y nunca más (el bug que dejó la posición
+    BTC-USD estancada indefinidamente)."""
 
     if stop_loss is None:
         return
 
     if precio_actual <= stop_loss:
-        if alerta_stop_enviada:
-            return  # ya se avisó de este cruce, se espera tu decisión
+        alert_state.record_trigger(position_id, "stop_loss", precio_actual)
 
-        codigo = enviar_mensaje_telegram(
-            f"""
+        if alert_state.should_notify(position_id, "stop_loss"):
+            codigo = enviar_mensaje_telegram(
+                f"""
 🚨 ROBOTINAIA - STOP LOSS ALCANZADO
 
 Activo         : {symbol}
@@ -75,15 +87,15 @@ Elige una opción:
 /vender {position_id} {precio_actual:.2f}   -> cerrar la posición ahora
 /mantener {position_id}   -> ignorar por ahora, seguir con el mismo stop
 """
-        )
-        logger.info(f"{symbol}: alerta de stop loss -> TELEGRAM ({codigo})")
-        marcar_alerta_stop(position_id, True)
+            )
+            logger.info(f"{symbol}: alerta de stop loss -> TELEGRAM ({codigo})")
 
     else:
-        if alerta_stop_enviada:
-            # El precio se recuperó por encima del stop: se rearma la alerta
-            # para que un futuro cruce vuelva a notificar.
-            marcar_alerta_stop(position_id, False)
+        # El precio se recuperó por encima del stop: se resuelve el
+        # ciclo de alerta, para que un futuro cruce empiece un
+        # first_trigger nuevo (notifica de inmediato, no espera al
+        # recordatorio periódico).
+        alert_state.resolve(position_id, "stop_loss")
 
 
 def _enviar_aviso_crecimiento(symbol, buy_price, precio_actual):
@@ -138,7 +150,7 @@ def revisar_alertas_portafolio():
                 position_id, symbol, precio_actual, stop_loss, target_price
             )
 
-            _revisar_stop_loss(position_id, symbol, precio_actual, stop_loss, alerta_stop_enviada)
+            _revisar_stop_loss(position_id, symbol, precio_actual, stop_loss)
 
             _enviar_aviso_crecimiento(symbol, buy_price, precio_actual)
 
