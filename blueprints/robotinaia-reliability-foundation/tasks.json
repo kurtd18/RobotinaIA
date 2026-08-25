@@ -393,7 +393,7 @@
     ],
     "checkpoint": "step-21-telegram-bot-cutover",
     "files": ["telegram_bot.py", "tests/test_telegram_bot_registration.py"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E7-T3",

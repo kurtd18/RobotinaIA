@@ -11,15 +11,15 @@ from telegram.ext import (
     ContextTypes
 )
 
-from telegram_commands import (
+from app.notifications.commands import (
     portfolio_command,
-    buy_command,
+    comprar_command,
     sell_command,
     vender_command,
     mantener_command,
     analisis_command,
+    cripto_command,
 )
-from app.notifications.crypto_telegram_commands import cripto_command
 
 load_dotenv()
 
@@ -36,7 +36,7 @@ Comandos:
 /help
 /ping
 /portfolio
-/buy
+/comprar
 /sell
 /vender
 /mantener
@@ -55,14 +55,14 @@ COMANDOS DISPONIBLES
 
 /portfolio
 
-/buy SIGNAL_ID CANTIDAD
+/comprar SIGNAL_ID CANTIDAD
 
 Compra a partir de una señal. El precio de entrada, el stop (-1%) y el
 objetivo (+3%) se calculan automáticamente.
 
 Ejemplo:
 
-/buy 15 73
+/comprar 15 73
 
 /sell ID PRECIO
 
@@ -112,22 +112,22 @@ async def portfolio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(mensaje)
 
 
-async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def comprar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
 
     if len(args) != 2:
-        await update.message.reply_text("Uso:\n/buy SIGNAL_ID CANTIDAD")
+        await update.message.reply_text("Uso:\n/comprar SIGNAL_ID CANTIDAD")
         return
 
     try:
-        mensaje = buy_command(args[0], args[1])
+        mensaje = comprar_command(args[0], args[1])
         await update.message.reply_text(mensaje)
 
     except ValueError:
         await update.message.reply_text("SIGNAL_ID y CANTIDAD deben ser valores numéricos.")
 
     except Exception:
-        logger.exception("Error procesando /buy")
+        logger.exception("Error procesando /comprar")
         await update.message.reply_text(
             "Ocurrió un error procesando la compra. Intenta de nuevo más tarde."
         )
@@ -243,7 +243,7 @@ def main():
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("ping", ping))
     app.add_handler(CommandHandler("portfolio", portfolio))
-    app.add_handler(CommandHandler("buy", buy))
+    app.add_handler(CommandHandler("comprar", comprar))
     app.add_handler(CommandHandler("sell", sell))
     app.add_handler(CommandHandler("vender", vender))
     app.add_handler(CommandHandler("mantener", mantener))
