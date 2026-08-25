@@ -340,7 +340,7 @@
     "verify": ["pytest tests/test_stock_scheduler_repository.py -v"],
     "checkpoint": "step-18-stock-scheduler-idempotency",
     "files": ["app/scheduler/stock_scheduler_repository.py", "tests/test_stock_scheduler_repository.py"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E6-T2",
