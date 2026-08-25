@@ -26,7 +26,7 @@ from zoneinfo import ZoneInfo
 
 from loguru import logger
 
-from app.alerts.portfolio_alerts import TRAILING_STEP_PCT
+from app.core.settings import Settings
 from app.database.connection import get_connection
 from app.services.fee_config import CRYPTO_FEE_CONFIG, STOCK_FEE_CONFIG
 from app.services.symbol_normalization import normalizar_symbol
@@ -211,7 +211,7 @@ def aplicar_trailing_stop(position_id, precio_actual, stop_loss, target_price):
     """
     while target_price is not None and precio_actual >= target_price:
         nuevo_stop = target_price
-        nuevo_target = target_price * (1 + TRAILING_STEP_PCT)
+        nuevo_target = target_price * (1 + Settings.TRAILING_STEP_PCT)
 
         actualizar_trailing_stop(position_id, nuevo_stop, nuevo_target)
 

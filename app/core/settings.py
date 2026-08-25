@@ -34,6 +34,15 @@ class Settings:
     ALERTA_RECORDATORIO_HORAS = 6
     ALERTA_CAMBIO_MATERIAL_PCT = 0.5
 
+    # Trailing stop (stop loss dinámico): cuando el precio alcanza el
+    # objetivo, ese nivel se vuelve el nuevo stop y el objetivo sube
+    # este porcentaje más. Vive acá (no en portfolio_alerts.py ni en
+    # portfolio_service.py) porque ambos módulos lo necesitan y
+    # definirlo en cualquiera de los dos crea un import circular entre
+    # ellos - un valor compartido sin dependencias es la forma correcta
+    # de evitarlo, no un import perezoso.
+    TRAILING_STEP_PCT = 0.03
+
     # La estrategia RSI(2) Connors revisa cada INTERVALO_REVISION_MINUTOS
     # minutos, solo dentro de la ventana HORA_INICIO_REVISION a
     # HORA_FIN_REVISION (America/Bogota) - fuera de esa ventana no hace

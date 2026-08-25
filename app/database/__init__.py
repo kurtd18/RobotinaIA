@@ -4,6 +4,7 @@ from .signal_repository import (
     existe_senal_pendiente,
     obtener_senal_pendiente_por_symbol,
     obtener_senal,
+    marcar_senal_ejecutada,
     marcar_senal_vendida,
     show_tables,
 )
@@ -14,6 +15,7 @@ __all__ = [
     "existe_senal_pendiente",
     "obtener_senal_pendiente_por_symbol",
     "obtener_senal",
+    "marcar_senal_ejecutada",
     "marcar_senal_vendida",
     "show_tables",
 ]

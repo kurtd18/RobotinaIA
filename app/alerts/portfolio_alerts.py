@@ -9,17 +9,17 @@ Cada ciclo, para cada posición abierta:
   3. Envía un aviso de cuánto ha crecido/caído la posición desde la compra.
 
 Las alertas de una posición se detienen automáticamente cuando se cierra
-(get_open_positions() solo devuelve posiciones con status='OPEN').
+(portfolio_service.get_open_positions() solo devuelve posiciones con
+status='OPEN').
 """
 
 import yfinance as yf
 from loguru import logger
 
-from portfolio import get_open_positions, actualizar_trailing_stop
 from app.alerts import alert_state
+from app.core.settings import Settings
+from app.services import portfolio_service
 from app.services.telegram_service import enviar_mensaje_telegram
-
-TRAILING_STEP_PCT = 0.03  # 3%
 
 
 def _revisar_trailing_stop(position_id, symbol, precio_actual, stop_loss, target_price):
@@ -31,9 +31,9 @@ def _revisar_trailing_stop(position_id, symbol, precio_actual, stop_loss, target
 
     while target_price is not None and precio_actual >= target_price:
         nuevo_stop = target_price
-        nuevo_target = target_price * (1 + TRAILING_STEP_PCT)
+        nuevo_target = target_price * (1 + Settings.TRAILING_STEP_PCT)
 
-        actualizar_trailing_stop(position_id, nuevo_stop, nuevo_target)
+        portfolio_service.actualizar_trailing_stop(position_id, nuevo_stop, nuevo_target)
         # Se registra en la máquina de estados de alertas para dejar
         # historial consistente con stop_loss, pero SIN cambiar el
         # comportamiento de notificación existente: acá siempre se
@@ -118,20 +118,17 @@ Variación      : {crecimiento_pct:+.2f}%
 def revisar_alertas_portafolio():
     """Revisa todas las posiciones abiertas: trailing stop, stop loss y crecimiento."""
 
-    posiciones = get_open_positions()
+    posiciones = portfolio_service.get_open_positions()
 
     logger.info(f"Revisando alertas de portafolio: {len(posiciones)} posición(es) abierta(s)")
 
-    for (
-        position_id,
-        symbol,
-        quantity,
-        buy_price,
-        buy_date,
-        target_price,
-        stop_loss,
-        alerta_stop_enviada,
-    ) in posiciones:
+    for posicion in posiciones:
+        position_id = posicion["id"]
+        symbol = posicion["symbol"]
+        buy_price = posicion["buy_price"]
+        target_price = posicion["target_price"]
+        stop_loss = posicion["stop_loss"]
+
         try:
             data = yf.Ticker(symbol).history(period="1d", interval="5m")
 

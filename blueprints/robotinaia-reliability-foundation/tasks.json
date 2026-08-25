@@ -446,8 +446,8 @@
       "! grep -rln \"^import portfolio\\|^from portfolio\\|import telegram_commands\\|from telegram_commands\\|import signal_manager\\|from signal_manager\" app/ run_all.py main.py telegram_bot.py"
     ],
     "checkpoint": "step-24-legacy-import-free",
-    "files": [],
-    "status": "pending"
+    "files": ["app/alerts/portfolio_alerts.py", "app/services/portfolio_service.py", "app/core/settings.py", "app/database/signal_repository.py", "app/database/__init__.py", "app/notifications/commands.py"],
+    "status": "done"
   },
   {
     "id": "E8-T3",

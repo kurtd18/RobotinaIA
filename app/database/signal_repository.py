@@ -109,6 +109,25 @@ def obtener_senal(signal_id):
     return result
 
 
+def marcar_senal_ejecutada(signal_id):
+    """Marca una señal como ejecutada - se usa cuando se compra una
+    posición a partir de ella (comprar_command, Épica 7). Puerto de
+    signal_manager.mark_as_executed, movido acá para que
+    app/notifications/commands.py no dependa de signal_manager.py
+    (Épica 8: cero imports de módulos legacy)."""
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "UPDATE signals SET signal='EXECUTED' WHERE id=?",
+        (signal_id,),
+    )
+
+    conn.commit()
+    conn.close()
+
+
 def marcar_senal_vendida(signal_id):
     """Marca una señal como cerrada (vendida) - se usa cuando se cumple
     la condición de salida del RSI(2) de Connors (RSI cruza sobre 70, o

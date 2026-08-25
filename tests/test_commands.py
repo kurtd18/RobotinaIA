@@ -40,7 +40,7 @@ def test_comprar_command_uses_portfolio_service_add_position(db_path):
     signal_id = conn.execute("SELECT id FROM signals WHERE symbol='AAPL'").fetchone()[0]
     conn.close()
 
-    with patch("app.notifications.commands.mark_as_executed") as mock_mark:
+    with patch("app.notifications.commands.marcar_senal_ejecutada") as mock_mark:
         mensaje = commands.comprar_command(signal_id, 10)
 
     assert "POSICIÓN AGREGADA" in mensaje
@@ -62,7 +62,7 @@ def test_comprar_command_crypto_signal_gets_crypto_asset_class(db_path):
     signal_id = conn.execute("SELECT id FROM signals WHERE symbol='BTC-USD'").fetchone()[0]
     conn.close()
 
-    with patch("app.notifications.commands.mark_as_executed"):
+    with patch("app.notifications.commands.marcar_senal_ejecutada"):
         commands.comprar_command(signal_id, 1)
 
     posiciones = portfolio_service.get_open_positions()

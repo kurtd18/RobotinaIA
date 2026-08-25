@@ -24,14 +24,18 @@ sell_command y analisis_command.
 telegram_commands.py y crypto_telegram_commands.py NO se eliminan
 acá - quedan sin registrar, como peso muerto hasta que la Épica 8 los
 borre tras el período de observación.
+
+Nota (Épica 8, E8-T2): comprar_command usaba signal_manager.mark_as_executed
+al principio - se movió a app.database.signal_repository.marcar_senal_ejecutada
+para que este módulo no dependa de signal_manager.py, uno de los
+módulos legacy que Épica 8 borra tras el período de observación.
 """
 
 from app.ai.ollama_analyzer import AnalisisNoDisponible, analizar_activo
 from app.core.settings import Settings
-from app.database import obtener_senal
+from app.database import marcar_senal_ejecutada, obtener_senal
 from app.notifications.crypto_telegram_commands import cripto_command
 from app.services import portfolio_service
-from signal_manager import mark_as_executed
 
 STOP_INICIAL_PCT = 0.01  # -1% desde la entrada
 OBJETIVO_INICIAL_PCT = 0.03  # +3% desde la entrada
@@ -96,7 +100,7 @@ def comprar_command(signal_id, quantity):
         stop_loss=stop_loss,
     )
 
-    mark_as_executed(signal_id)
+    marcar_senal_ejecutada(signal_id)
 
     return (
         "POSICIÓN AGREGADA\n\n"

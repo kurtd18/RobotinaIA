@@ -129,8 +129,26 @@ Before this task's commit lands, confirm (operator-facing, recorded here, not al
 4. No code anywhere still imports `portfolio.py`, `telegram_commands.py`, or `signal_manager.py` —
    this part is mechanically checked below.
 
-**Files:** none (this task's own commit records the sign-off; it does not touch source files beyond
-what `E7-T2`/`E7-T3` already changed).
+**Files:** none originally planned (this task's own commit records the sign-off). **Real gap found
+and fixed during execution:** `app/alerts/portfolio_alerts.py` — the module the scheduler calls every
+cycle to check trailing-stop/stop-loss — still imported `get_open_positions`/`actualizar_trailing_stop`
+directly from legacy `portfolio.py`. No task in Epics 4-7 had cut it over (E5-T2 wired it to the new
+`alert_state` machine for notifications, but left its data access on the legacy module). This blocked
+both this task's mechanical grep and E8-T3's deletion of `portfolio.py` entirely — confirmed with the
+operator, fixed by rewiring it to `portfolio_service.get_open_positions()`/`actualizar_trailing_stop()`.
+
+That fix surfaced a second real bug: a circular import (`portfolio_alerts` → `portfolio_service` →
+`portfolio_alerts`, both needing `TRAILING_STEP_PCT`). Resolved by moving the constant to
+`Settings.TRAILING_STEP_PCT` (`app/core/settings.py`), matching the repo's existing convention for
+shared tunables, rather than a lazy/deferred import.
+
+Also resolved while here: `app/notifications/commands.py` (E7-T1) imported
+`signal_manager.mark_as_executed` — ported to `app/database/signal_repository.marcar_senal_ejecutada`
+so `commands.py` doesn't depend on a module Epic 8 removes.
+
+Touched: `app/alerts/portfolio_alerts.py`, `app/services/portfolio_service.py`,
+`app/core/settings.py`, `app/database/signal_repository.py`, `app/database/__init__.py`,
+`app/notifications/commands.py`.
 
 **Acceptance**
 
