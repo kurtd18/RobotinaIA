@@ -19,13 +19,15 @@ from loguru import logger
 import main as scheduler_module
 import telegram_bot
 from app.scheduler.crypto_scheduler import loop_scheduler as crypto_loop_scheduler
+from app.scheduler.supervisor import run_supervised
 
 
 def _iniciar_scheduler():
-    try:
-        scheduler_module.main()
-    except Exception:
-        logger.exception("El scheduler se detuvo por un error inesperado")
+    # Épica 6: antes, una excepción no atrapada acá mataba el hilo para
+    # siempre en silencio - run_supervised reintenta con backoff
+    # creciente y, si se agotan los intentos, escala por Telegram en vez
+    # de dejar el scheduler de acciones muerto sin que nadie se entere.
+    run_supervised(scheduler_module.main, "stock_scheduler")
 
 
 def _iniciar_scheduler_crypto():

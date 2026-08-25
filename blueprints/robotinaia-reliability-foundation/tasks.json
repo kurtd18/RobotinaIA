@@ -357,7 +357,7 @@
     "verify": ["pytest tests/test_stock_scheduler_supervisor.py -v"],
     "checkpoint": "step-19-stock-scheduler-supervised",
     "files": ["app/scheduler/supervisor.py", "run_all.py", "tests/test_stock_scheduler_supervisor.py"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E7-T1",
