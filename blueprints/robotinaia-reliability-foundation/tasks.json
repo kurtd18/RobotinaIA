@@ -368,12 +368,13 @@
     "acceptance": [
       "WHEN portfolio_command() is called with open positions in both asset classes THE SYSTEM SHALL list both stock and crypto positions in one output.",
       "WHEN comprar_command is called THE SYSTEM SHALL create a position via portfolio_service.add_position, not portfolio.add_position.",
-      "WHEN cripto_command() is called THE SYSTEM SHALL return output identical in shape to the current crypto_telegram_commands.py implementation."
+      "WHEN cripto_command() is called THE SYSTEM SHALL return output identical in shape to the current crypto_telegram_commands.py implementation.",
+      "WHEN sell_command and analisis_command are called THE SYSTEM SHALL behave the same as telegram_commands.py's originals (confirmed with the operator: ported so /sell and /analisis keep working and E7-T2's zero-imports criterion is achievable)."
     ],
     "verify": ["pytest tests/test_commands.py -v"],
     "checkpoint": "step-20-unified-commands",
     "files": ["app/notifications/commands.py", "tests/test_commands.py"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E7-T2",
@@ -383,7 +384,7 @@
     "priority": "p0",
     "acceptance": [
       "WHEN telegram_bot.py is inspected THE SYSTEM SHALL show zero import statements referencing telegram_commands or crypto_telegram_commands.",
-      "WHEN the bot's registered command handlers are enumerated THE SYSTEM SHALL show /portfolio, /comprar, /vender, /mantener, /cripto all pointing at app.notifications.commands functions.",
+      "WHEN the bot's registered command handlers are enumerated THE SYSTEM SHALL show /portfolio, /comprar (renamed from /buy), /sell, /vender, /mantener, /analisis, /cripto all pointing at app.notifications.commands functions.",
       "WHEN `pytest tests/` runs the full suite THE SYSTEM SHALL exit 0."
     ],
     "verify": [

@@ -347,8 +347,12 @@ Epic 3).
 
 ### Current (as-is)
 
-- `telegram_commands.py`: `/portfolio`, `/comprar`, `/vender`, `/mantener` — stocks + legacy
-  portfolio, imports `portfolio.py` directly.
+- `telegram_commands.py`: `/portfolio`, `/buy`, `/sell`, `/vender`, `/mantener`, `/analisis` —
+  stocks + legacy portfolio, imports `portfolio.py` directly. **Correction from an earlier draft of
+  this section**: `/sell` and `/analisis` exist in the real `telegram_bot.py` today and were
+  originally missing from this list, which would have made E7-T2's "zero `telegram_commands` imports"
+  criterion impossible to satisfy without silently dropping those two commands. Confirmed with the
+  operator: port everything (see Target below), and rename `/buy` to `/comprar`.
 - `app/notifications/crypto_telegram_commands.py`: `/cripto` — crypto-only, read-only, calls
   `run_crypto_analysis(persistir=False)`.
 - `app/dashboard/dashboard.py`: single Streamlit page, `st.metric` + `st.dataframe` over
@@ -358,9 +362,13 @@ Epic 3).
 
 - `app/notifications/commands.py`: one dispatch style (a `{command_name: handler}` map, matching the
   existing `python-telegram-bot` `CommandHandler` registration pattern already used in
-  `telegram_bot.py`), covering `/portfolio`, `/comprar`, `/vender`, `/mantener`, `/cripto` — all
-  reading/writing through `app/services/portfolio_service.py`, never `portfolio.py` or raw SQL
-  directly.
+  `telegram_bot.py`), covering `/portfolio`, `/comprar` (renamed from `/buy`), `/sell`, `/vender`,
+  `/mantener`, `/analisis`, `/cripto` — all portfolio mutation through
+  `app/services/portfolio_service.py`, never `portfolio.py` or raw SQL directly. `/sell` and
+  `/analisis` are ported unchanged in shape (same signatures, `/sell` now calls
+  `portfolio_service.sell_position` instead of `portfolio.sell_position`, `/analisis` untouched since
+  it never touches portfolio state) — this is what makes "zero `telegram_commands` imports" achievable
+  without removing functionality.
 - `app/dashboard/dashboard.py` calls a small read-only query function exposed by
   `app/services/portfolio_service.py` (and the existing `app/database` signal-reading helpers)
   instead of composing SQL inline — same displayed metrics, same layout, same `st.dataframe` call.
@@ -1292,12 +1300,15 @@ git tag step-19-stock-scheduler-supervised
 
 **Files touched:** `app/notifications/commands.py`, `tests/test_commands.py`
 
-**Do:** `app/notifications/commands.py` exposes `portfolio_command()`, `comprar_command(...)`,
-`vender_command(...)`, `mantener_command(...)` (ported from `telegram_commands.py`, rewritten against
-`portfolio_service` instead of `portfolio.py`) and `cripto_command()` (moved as-is from
-`app/notifications/crypto_telegram_commands.py`, unchanged body — it already does not touch the
-portfolio). All five are collected in one `COMMANDS: dict[str, Callable]` map for registration in
-`telegram_bot.py`.
+**Do:** `app/notifications/commands.py` exposes `portfolio_command()`, `comprar_command(...)`
+(renamed from `buy_command`), `sell_command(...)`, `vender_command(...)`, `mantener_command(...)`
+(ported from `telegram_commands.py`, rewritten against `portfolio_service` instead of `portfolio.py`),
+`analisis_command(...)` (ported unchanged — never touches portfolio state), and `cripto_command()`
+(moved as-is from `app/notifications/crypto_telegram_commands.py`, unchanged body — it already does
+not touch the portfolio). All seven are collected in one `COMMANDS: dict[str, Callable]` map for
+registration in `telegram_bot.py`. `sell_command` and `analisis_command` were not in this task's
+original scope but are required for E7-T2's "zero `telegram_commands` imports" criterion to hold
+without silently dropping `/sell` and `/analisis` — confirmed with the operator.
 
 **Acceptance criteria:**
 1. **WHEN** `portfolio_command()` is called with open positions in both asset classes **THE SYSTEM
