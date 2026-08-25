@@ -291,7 +291,7 @@
     ],
     "checkpoint": "step-15-parity-harness",
     "files": ["scripts/parity_harness_portfolio.py", "tests/test_parity_harness.py"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E5-T1",
