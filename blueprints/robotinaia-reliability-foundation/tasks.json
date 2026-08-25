@@ -273,7 +273,7 @@
     ],
     "checkpoint": "step-14-stale-btc-tooling",
     "files": ["migrations/0002_resolve_stale_btc.py", "tests/test_resolve_stale_btc.py"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E4-T6",
