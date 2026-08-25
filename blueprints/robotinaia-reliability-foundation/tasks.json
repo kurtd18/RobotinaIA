@@ -309,7 +309,7 @@
     "verify": ["pytest tests/test_alert_state.py -v"],
     "checkpoint": "step-16-alert-state-machine",
     "files": ["app/alerts/alert_state.py", "tests/test_alert_state.py"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E5-T2",

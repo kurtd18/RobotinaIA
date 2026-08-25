@@ -121,11 +121,12 @@ CREATE TABLE IF NOT EXISTS stock_scheduler_runs (
 )
 """
 
-# Esquema inicial para Épica 5 (máquina de estados de alertas:
-# first_trigger / periodic_reminder / new_extreme / resolved). Sin FK a
-# portfolio.id todavía a propósito: cuando esta tabla se crea, Épica 4
-# todavía no unificó el modelo de portfolio - la FK se agrega en la
-# migración que corresponda cuando llegue esa épica, no aquí.
+# Esta es la forma "base" de alert_state, previa a la migración 3. El
+# CHECK sobre status, el UNIQUE(position_id, alert_type) y la FK a
+# portfolio(id) se agregan vía
+# app.database.migrations._migration_003_alert_state_constraints, no
+# acá - misma razón que portfolio: SQLite no permite agregar CHECK ni
+# UNIQUE con ALTER TABLE.
 SCHEMA_ALERT_STATE = """
 CREATE TABLE IF NOT EXISTS alert_state (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

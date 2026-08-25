@@ -24,6 +24,16 @@ class Settings:
     # coherente con el umbral >=50 = REVISAR ya definido en alert_engine.py.
     UMBRAL_SENAL = 80
 
+    # Máquina de estados de alertas (app/alerts/alert_state.py, Épica 5).
+    # Un stop-loss/target sin resolver se recuerda cada
+    # ALERTA_RECORDATORIO_HORAS horas si no hay una novedad de precio, y
+    # de inmediato si el precio empeora más de ALERTA_CAMBIO_MATERIAL_PCT
+    # respecto al extremo ya registrado - así se evita el bug de "se
+    # avisa una sola vez y nunca más" que dejó la posición BTC-USD
+    # estancada indefinidamente.
+    ALERTA_RECORDATORIO_HORAS = 6
+    ALERTA_CAMBIO_MATERIAL_PCT = 0.5
+
     # La estrategia RSI(2) Connors revisa cada INTERVALO_REVISION_MINUTOS
     # minutos, solo dentro de la ventana HORA_INICIO_REVISION a
     # HORA_FIN_REVISION (America/Bogota) - fuera de esa ventana no hace

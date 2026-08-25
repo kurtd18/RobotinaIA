@@ -116,6 +116,24 @@ def _construir_portfolio_pre_migracion_002(conn):
         )
         """
     )
+    # apply_migrations() sigue de largo hasta la migración más nueva
+    # disponible (hoy, la 3, que toca alert_state) - esta tabla base
+    # tiene que existir para que ese paso no falle, aunque este test
+    # solo le interese verificar la migración 2.
+    conn.execute(
+        """
+        CREATE TABLE alert_state (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            position_id INTEGER NOT NULL,
+            alert_type TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'first_trigger',
+            extreme_price REAL,
+            first_triggered_at TEXT NOT NULL,
+            last_notified_at TEXT,
+            resolved_at TEXT
+        )
+        """
+    )
     conn.execute("PRAGMA user_version=1;")
 
 
@@ -217,6 +235,76 @@ def test_user_version_is_at_least_1(db_path):
     version = conn.execute("PRAGMA user_version;").fetchone()[0]
     conn.close()
     assert version >= 1
+
+
+def test_insert_alert_state_with_invalid_status_raises(db_path):
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO portfolio (symbol, quantity, buy_price, buy_date, status, "
+        "asset_class, normalized_symbol) VALUES ('AAA', 1, 1.0, '2026-01-01', "
+        "'OPEN', 'stock', 'AAA')"
+    )
+    conn.commit()
+    position_id = conn.execute("SELECT id FROM portfolio WHERE symbol='AAA'").fetchone()[0]
+    try:
+        try:
+            conn.execute(
+                "INSERT INTO alert_state (position_id, alert_type, status, first_triggered_at) "
+                "VALUES (?, 'stop_loss', 'NOT_A_REAL_STATUS', '2026-01-01T00:00:00')",
+                (position_id,),
+            )
+            conn.commit()
+            assert False, "se esperaba sqlite3.IntegrityError"
+        except sqlite3.IntegrityError:
+            pass
+    finally:
+        conn.close()
+
+
+def test_insert_alert_state_duplicate_position_and_type_raises(db_path):
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO portfolio (symbol, quantity, buy_price, buy_date, status, "
+        "asset_class, normalized_symbol) VALUES ('AAA', 1, 1.0, '2026-01-01', "
+        "'OPEN', 'stock', 'AAA')"
+    )
+    conn.commit()
+    position_id = conn.execute("SELECT id FROM portfolio WHERE symbol='AAA'").fetchone()[0]
+    try:
+        conn.execute(
+            "INSERT INTO alert_state (position_id, alert_type, first_triggered_at) "
+            "VALUES (?, 'stop_loss', '2026-01-01T00:00:00')",
+            (position_id,),
+        )
+        conn.commit()
+        try:
+            conn.execute(
+                "INSERT INTO alert_state (position_id, alert_type, first_triggered_at) "
+                "VALUES (?, 'stop_loss', '2026-01-01T01:00:00')",
+                (position_id,),
+            )
+            conn.commit()
+            assert False, "se esperaba sqlite3.IntegrityError (UNIQUE)"
+        except sqlite3.IntegrityError:
+            pass
+    finally:
+        conn.close()
+
+
+def test_insert_alert_state_with_nonexistent_position_raises(db_path):
+    conn = get_connection()
+    try:
+        try:
+            conn.execute(
+                "INSERT INTO alert_state (position_id, alert_type, first_triggered_at) "
+                "VALUES (999999, 'stop_loss', '2026-01-01T00:00:00')"
+            )
+            conn.commit()
+            assert False, "se esperaba sqlite3.IntegrityError"
+        except sqlite3.IntegrityError:
+            pass
+    finally:
+        conn.close()
 
 
 def test_scheduler_and_paper_trading_tables_exist(db_path):

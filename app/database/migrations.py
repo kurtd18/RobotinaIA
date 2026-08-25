@@ -212,11 +212,76 @@ def _migration_002_portfolio_asset_class(conn) -> None:
             conn.execute("PRAGMA foreign_keys=ON;")
 
 
+def _migration_003_alert_state_constraints(conn) -> None:
+    """Agrega a alert_state: CHECK sobre status, UNIQUE(position_id,
+    alert_type) - lo que permite que alert_state.record_trigger() haga
+    un upsert seguro en cada ciclo sin duplicar filas - y la FK a
+    portfolio(id) que la Épica 2 dejó pendiente a propósito hasta que
+    Épica 4 unificara el modelo de portfolio (ya lo hizo).
+
+    Nada más referencia "alert_state" por nombre todavía, así que
+    renombrarla acá no dispara el problema de reescritura de FK que sí
+    afectó a portfolio en la migración 2 - alert_state es quien tiene
+    la FK, no a quien apuntan.
+
+    Sin datos que preservar en la práctica (la tabla se creó en Épica 2
+    pero nada la usa hasta esta épica), pero se sigue el mismo patrón de
+    copiar filas por consistencia con las demás migraciones de
+    reconstrucción.
+    """
+    was_fk_on = conn.execute("PRAGMA foreign_keys;").fetchone()[0]
+    conn.execute("PRAGMA foreign_keys=OFF;")
+    try:
+        cursor = conn.cursor()
+
+        filas = cursor.execute(
+            """
+            SELECT id, position_id, alert_type, status, extreme_price,
+                   first_triggered_at, last_notified_at, resolved_at
+            FROM alert_state
+            """
+        ).fetchall()
+
+        cursor.execute("ALTER TABLE alert_state RENAME TO alert_state_old_v3")
+        cursor.execute(
+            """
+            CREATE TABLE alert_state (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                position_id INTEGER NOT NULL REFERENCES portfolio(id),
+                alert_type TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'first_trigger'
+                    CHECK (status IN ('first_trigger', 'periodic_reminder', 'new_extreme', 'resolved')),
+                extreme_price REAL,
+                first_triggered_at TEXT NOT NULL,
+                last_notified_at TEXT,
+                resolved_at TEXT,
+                UNIQUE(position_id, alert_type)
+            )
+            """
+        )
+        for fila in filas:
+            cursor.execute(
+                """
+                INSERT INTO alert_state (
+                    id, position_id, alert_type, status, extreme_price,
+                    first_triggered_at, last_notified_at, resolved_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                fila,
+            )
+        cursor.execute("DROP TABLE alert_state_old_v3")
+        conn.commit()
+    finally:
+        if was_fk_on:
+            conn.execute("PRAGMA foreign_keys=ON;")
+
+
 # (version_objetivo, funcion) en orden. apply_migrations corre solo las
 # que faltan, comparando contra PRAGMA user_version.
 MIGRATIONS: list[tuple[int, callable]] = [
     (1, _migration_001_add_constraints),
     (2, _migration_002_portfolio_asset_class),
+    (3, _migration_003_alert_state_constraints),
 ]
 
 
