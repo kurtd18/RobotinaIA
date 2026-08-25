@@ -430,8 +430,8 @@
       "pytest tests/ -q"
     ],
     "checkpoint": "step-23-dead-code-removed",
-    "files": ["scoring.py", "stats.py", "bollinger.py"],
-    "status": "pending"
+    "files": ["scoring.py", "stats.py", "bollinger.py", "tests/test_score.py"],
+    "status": "done"
   },
   {
     "id": "E8-T2",
