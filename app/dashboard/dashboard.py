@@ -2,42 +2,12 @@ import sys
 from pathlib import Path
 
 import streamlit as st
-import pandas as pd
 
 # Permite correr este archivo con "streamlit run app/dashboard/dashboard.py"
 # sin depender del directorio desde el que se invoque.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from app.database.connection import get_connection
-
-
-def cargar_senales():
-    conn = get_connection()
-
-    try:
-        df = pd.read_sql_query(
-            """
-            SELECT
-                id,
-                symbol,
-                score,
-                signal,
-                price,
-                timestamp
-            FROM signals
-            ORDER BY id DESC
-            """,
-            conn
-        )
-
-    except Exception:
-
-        df = pd.DataFrame()
-
-    conn.close()
-
-    return df
-
+from app.services.signal_query_service import listar_senales
 
 st.set_page_config(
     page_title="RobotinaIA",
@@ -48,7 +18,7 @@ st.set_page_config(
 st.title("🤖 RobotinaIA")
 st.subheader("Centro de Control")
 
-df = cargar_senales()
+df = listar_senales()
 
 col1, col2, col3 = st.columns(3)
 

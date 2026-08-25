@@ -412,7 +412,7 @@
     ],
     "checkpoint": "step-22-dashboard-service-layer",
     "files": ["app/dashboard/dashboard.py", "app/services/signal_query_service.py", "tests/test_signal_query_service.py"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E8-T1",
