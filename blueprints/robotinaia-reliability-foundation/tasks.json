@@ -467,6 +467,6 @@
     ],
     "checkpoint": "step-25-legacy-decommissioned",
     "files": ["portfolio.py", "telegram_commands.py", "signal_manager.py"],
-    "status": "pending"
+    "status": "done"
   }
 ]
