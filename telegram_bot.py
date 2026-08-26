@@ -108,8 +108,15 @@ async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def portfolio(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    mensaje = portfolio_command()
-    await update.message.reply_text(mensaje)
+    try:
+        mensaje = portfolio_command()
+        await update.message.reply_text(mensaje)
+
+    except Exception:
+        logger.exception("Error procesando /portfolio")
+        await update.message.reply_text(
+            "Ocurrió un error consultando el portafolio. Intenta de nuevo más tarde."
+        )
 
 
 async def comprar(update: Update, context: ContextTypes.DEFAULT_TYPE):
