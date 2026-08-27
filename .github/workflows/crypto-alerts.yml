@@ -1,0 +1,40 @@
+name: Crypto Alerts
+
+on:
+  schedule:
+    - cron: '0 13 * * *'   # 8:00 AM Colombia (UTC-5)
+    - cron: '0 21 * * *'   # 4:00 PM Colombia
+  workflow_dispatch: {}
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout RobotinaIA
+        uses: actions/checkout@v4
+
+      - name: Checkout crypto-trading-desk plugin
+        uses: actions/checkout@v4
+        with:
+          repository: hugoguerrap/crypto-claude-desk
+          path: crypto-alerts/crypto-trading-desk
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Install plugin dependencies
+        working-directory: crypto-alerts/crypto-trading-desk
+        run: uv sync
+
+      - name: Run analysis and notify
+        working-directory: crypto-alerts
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          chmod +x bin/run-and-notify.sh
+          ./bin/run-and-notify.sh "BTC ETH SOL"
