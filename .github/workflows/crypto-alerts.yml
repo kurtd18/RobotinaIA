@@ -2,8 +2,9 @@ name: Crypto Alerts
 
 on:
   schedule:
-    - cron: '0 13 * * *'   # 8:00 AM Colombia (UTC-5)
-    - cron: '0 21 * * *'   # 4:00 PM Colombia
+    - cron: '0 14 * * *'   # 9:00 AM Colombia
+    - cron: '0 18 * * *'   # 1:00 PM Colombia
+    - cron: '0 22 * * *'   # 5:00 PM Colombia
   workflow_dispatch: {}
 
 jobs:
@@ -37,4 +38,4 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           chmod +x bin/run-and-notify.sh
-          ./bin/run-and-notify.sh "BTC ETH SOL"
+          ./bin/run-and-notify.sh
