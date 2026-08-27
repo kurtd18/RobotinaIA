@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SYMBOLS="${1:-BTC ETH SOL}"
+SYMBOLS="${1:-BTC ETH XRP BNB SOL DOGE ADA TRX LINK AVAX}"
 
 # Corre el análisis rápido en modo headless.
 # --dangerously-skip-permissions es necesario porque no hay sesión interactiva
