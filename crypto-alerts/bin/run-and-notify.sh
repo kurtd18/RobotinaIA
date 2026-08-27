@@ -1,13 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SYMBOLS="${1:-BTC ETH XRP BNB SOL DOGE ADA TRX LINK AVAX}"
+SYMBOLS="${1:-XRP ETH DOGE SOL}"
 
-PROMPT="Usa directamente las herramientas MCP (crypto-data, crypto-exchange, crypto-technical, crypto-futures, crypto-advanced-indicators, crypto-market-microstructure) para obtener precio actual, cambio 24h, funding rate y Fear & Greed Index de estas monedas: $SYMBOLS. NO uses el comando /crypto-trading-desk:quick ni ningún slash command con plantilla fija — arma el reporte tú mismo. NO uses WebSearch ni WebFetch, solo datos MCP en vivo; si alguna herramienta falla, dilo brevemente y sigue con las demás.
+PROMPT="Usa directamente las herramientas MCP (crypto-data, crypto-exchange, crypto-technical, crypto-advanced-indicators) para obtener, de estas monedas: $SYMBOLS:
+- Precio actual y cambio 24h
+- RSI(14) en velas de 1h
+- EMA(12) y EMA(26) en velas de 1h, y si hubo un cruce (dorado o de la muerte) en las últimas 2-3 velas
+- SMA(200) en velas de 1h, para saber si el precio está por encima o por debajo (tendencia)
 
-Para CADA moneda con: movimiento >5% en 24h, funding rate divergente entre exchanges, o RSI extremo (>70 o <30), incluye un punto de entrada sugerido: dirección (LARGO o CORTO), precio de entrada, stop-loss, y take-profit apuntando a mínimo 3% de ganancia potencial. Basado solo en análisis técnico — etiqueta esto como informativo, no asesoría financiera.
+NO uses el comando /crypto-trading-desk:quick ni ningún slash command con plantilla fija. NO uses WebSearch ni WebFetch, solo datos MCP en vivo.
 
-Responde ÚNICAMENTE en español, sin plantillas en inglés. NO incluyas enlaces ni URLs. Formato para Telegram: usa *negrita*, tabla compacta, sin preámbulo."
+REGLA DE ENTRADA (validada por backtesting sobre 360 días, úsala EXACTAMENTE así, sin criterio libre adicional):
+- LARGO solo si: precio > SMA200  Y  (RSI < 30  O  hubo cruce dorado de EMA reciente)
+- CORTO solo si: precio < SMA200  Y  (RSI > 70  O  hubo cruce de la muerte de EMA reciente)
+- Si ninguna moneda cumple la regla, dilo explícitamente: 'Sin señales de entrada válidas en este momento' -- NO inventes una entrada para forzar una señal.
+
+Para cada moneda que SÍ cumpla la regla, incluye: dirección (LARGO/CORTO), precio de entrada, stop-loss (5% en contra), take-profit (3% a favor), y la razón exacta según la regla (ej. 'precio sobre SMA200 + cruce dorado reciente').
+
+Responde ÚNICAMENTE en español. NO incluyas enlaces ni URLs. Formato para Telegram: usa *negrita*, tabla compacta con precio/RSI/tendencia de las 4 monedas primero, luego la sección de señales, sin preámbulo.
+
+Al final, en una línea aparte: 'Basado en backtesting de 360 días, sin comisiones/slippage. No es asesoría financiera.'"
 
 OUTPUT=$(claude -p "$PROMPT" \
   --model claude-haiku-4-5-20251001 \
