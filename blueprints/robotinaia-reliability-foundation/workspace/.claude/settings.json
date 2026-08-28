@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pytest:*)",
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(pip install:*)",
+      "Bash(pip install -r requirements.txt)",
+      "Bash(sqlite3:*)",
+      "Bash(cp robotinaia.db*)",
+      "Bash(cp *.db*)",
+      "Bash(grep:*)",
+      "Bash(sha1sum:*)",
+      "Bash(diff:*)",
+      "Bash(ls:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git tag:*)",
+      "Bash(git tag -l 'step-*')",
+      "Bash(git log:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git init:*)",
+      "Bash(streamlit run:*)",
+      "Bash(test:*)",
+      "Bash(echo:*)",
+      "Bash(mkdir:*)"
+    ]
+  }
+}

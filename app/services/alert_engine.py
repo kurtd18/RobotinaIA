@@ -15,4 +15,4 @@ class AlertEngine:
         if score >= 50:
             return "REVISAR"
 
-        return "NO COMPRAR"
+        return "NO COMPRAR" 

@@ -1,0 +1,11 @@
+symbol,trades,wins,losses,timeouts,win_rate_%,pnl_acumulado_%
+BTC/USDT,17,9,8,0,52.9,-13.0
+ETH/USDT,19,9,10,0,47.4,-23.0
+XRP/USDT,22,17,5,0,77.3,26.0
+BNB/USDT,15,10,5,0,66.7,5.0
+SOL/USDT,13,7,6,0,53.8,-9.0
+DOGE/USDT,18,13,5,0,72.2,14.0
+ADA/USDT,18,11,7,0,61.1,-2.0
+TRX/USDT,17,5,4,8,29.4,-5.0
+LINK/USDT,16,10,6,0,62.5,0.0
+AVAX/USDT,19,10,9,0,52.6,-15.0

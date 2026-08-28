@@ -108,12 +108,22 @@ class BinanceProvider(MarketDataProvider):
         logger.info(f"OK: funding rate {symbol} = {resultado['funding_rate']:.6f}")
         return resultado
 
-    def get_funding_rate_history(self, symbol: str, limit: int = 30) -> list[dict]:
+    def get_funding_rate_history(self, symbol: str, limit: int = 30,
+                                  start_time: "datetime" = None, end_time: "datetime" = None) -> list[dict]:
         """
         Devuelve el historial de funding rate para `symbol` (más antiguo
         primero), como lista de {"symbol", "funding_rate", "funding_time"}.
+
+        start_time/end_time (opcionales, datetime): a diferencia de open
+        interest y long/short ratio, el funding rate sí tiene historial
+        largo en Binance - permite pedir un rango de fechas específico
+        (ej. para backtesting) en vez de solo "los últimos N registros".
         """
         params = {"symbol": symbol, "limit": limit}
+        if start_time is not None:
+            params["startTime"] = int(start_time.timestamp() * 1000)
+        if end_time is not None:
+            params["endTime"] = int(end_time.timestamp() * 1000)
         datos = self._pedir_futures(
             FUNDING_RATE_ENDPOINT, params, contexto=f"historial de funding rate {symbol}"
         )

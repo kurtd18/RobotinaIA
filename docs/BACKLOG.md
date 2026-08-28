@@ -96,3 +96,18 @@
 - [x] scripts/diagnostico_score.py actualizado con los 2 criterios nuevos.
 - [ ] Pendiente (decisión de arquitectura, no urgente): agregar RSI/medias móviles de varios plazos (7/21/50/200 como los usa el bróker) requiere primero decidir si se usan datos diarios en vez de velas de 5 minutos para los indicadores de plazo largo - hoy "200 periodos" serían ~16 horas, no 200 días.
 - [ ] Estocástico y Williams %R evaluados y descartados por ahora (redundantes con RSI, miden lo mismo con otra fórmula).
+## Épica 16 - Despliegue en Railway (cerrada)
+
+- [x] run_all.py: scheduler + bot en un solo proceso, comparten la misma base de datos.
+- [x] DATABASE_PATH configurable por variable de entorno, volumen persistente montado en /data.
+- [x] .gitignore corregido (llevaba sesiones sin aplicarse), ramas develop/main sincronizadas (main estaba congelada desde antes de toda la limpieza de esta conversación).
+- [x] Bug: variable DATABASE_PATH con un caracter de tabulacion invisible pegado al inicio, causaba sqlite3.OperationalError. Corregido escribiendo el valor a mano.
+- [x] Bug: requirements.txt no tenia "schedule" (el curado inicial solo detecto imports a nivel de archivo, no los que estan dentro de una funcion como en main.py). Agregado schedule==1.2.2, validado en entorno limpio.
+- [x] Confirmado con /ping y /portfolio que el sistema corre de forma independiente del PC del usuario.
+## Épica 17 - Migración de confiabilidad (blueprint robotinaia-reliability-foundation)
+
+- [x] Épicas 1-7 completas: bloqueo de seguridad (token filtrado, historial limpiado con git filter-repo), integridad/concurrencia de base de datos, proveedor de datos unificado (YahooProvider), portfolio y P&L unificados con comisiones honestas, máquina de estados de alertas persistida, supervisor del scheduler de acciones, y consolidación de comandos de Telegram + dashboard.
+- [x] E8-T1: código muerto confirmado eliminado (scoring.py, stats.py, bollinger.py, tests/test_score.py).
+- [x] E8-T2 (chequeo mecánico): cero imports de portfolio.py/telegram_commands.py/signal_manager.py en el código activo. Corregido en el camino: app/alerts/portfolio_alerts.py (nunca migrado en ninguna épica anterior) ahora usa portfolio_service; import circular resuelto moviendo TRAILING_STEP_PCT a Settings; app/notifications/commands.py ya no depende de signal_manager.py.
+- [x] **Sign-off del operador (gate de observación E8-T2), 2026-08-26**: sistema unificado (portfolio_service.py + app/notifications/commands.py) desplegado en Railway y confirmado corriendo en producción desde el **2026-08-25** (commits E4-T3/E7-T1/E7-T2/E8-T2). Comando real `/portfolio` verificado en producción el 2026-08-26 ("No existen posiciones abiertas"). Ventana de observación de 7 días: **2026-08-25 a 2026-09-01**. E8-T3 (borrar portfolio.py, telegram_commands.py, signal_manager.py) queda bloqueado hasta cumplir esa fecha sin incidentes.
+- [ ] E8-T3: pendiente de la ventana de observación de arriba.
