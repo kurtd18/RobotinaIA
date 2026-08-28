@@ -1,18 +1,18 @@
 """
-Analisis de senales cripto (RSI/EMA/SMA200) y notificacion por Telegram.
+Análisis de señales cripto (RSI/EMA/SMA200) y notificación por Telegram.
 
-Reemplaza el paso anterior, que le pedia a un LLM (via herramientas MCP)
+Reemplaza el paso anterior, que le pedía a un LLM (vía herramientas MCP)
 que calculara y redactara estos indicadores en lenguaje natural. Eso
 produjo valores distintos para el mismo momento de mercado en corridas
-casi simultaneas (ej. RSI de XRP = 66.58 en un mensaje y = 83 en el
-siguiente, minutos despues) - inaceptable para un sistema que genera
-senales de entrada con dinero real.
+casi simultáneas (ej. RSI de XRP = 66.58 en un mensaje y = 83 en el
+siguiente, minutos después) - inaceptable para un sistema que genera
+señales de entrada con dinero real.
 
-Aqui el calculo es 100% deterministico: mismos datos de entrada ->
+Aquí el cálculo es 100% determinístico: mismos datos de entrada ->
 mismo resultado, siempre. pandas_ta calcula RSI/EMA/SMA sobre las velas
 reales de Binance, la regla de entrada (ya validada por backtesting) se
-aplica como codigo, no como "criterio" de un modelo, y el mensaje se
-arma con f-strings, no con texto generado. No hay ningun paso de LLM en
+aplica como código, no como "criterio" de un modelo, y el mensaje se
+arma con f-strings, no con texto generado. No hay ningún paso de LLM en
 esta ruta.
 """
 
@@ -33,9 +33,9 @@ INTERVALO = "1h"
 VELAS_NECESARIAS = 250  # margen sobre las 200 que pide la SMA200
 
 # La API spot de Binance (api.binance.com) devuelve HTTP 451 (bloqueo
-# geografico) desde runners de GitHub Actions alojados en EE.UU. Yahoo
-# Finance no tiene esa restriccion, asi que sirve como respaldo -
-# mismo shape de DataFrame (columna "Close"), solo cambia el simbolo.
+# geográfico) desde runners de GitHub Actions alojados en EE.UU. Yahoo
+# Finance no tiene esa restricción, así que sirve como respaldo -
+# mismo shape de DataFrame (columna "Close"), solo cambia el símbolo.
 SIMBOLO_A_TICKER_YAHOO = {
     "XRP": "XRP-USD",
     "ETH": "ETH-USD",
@@ -58,7 +58,7 @@ TAKE_PROFIT_PCT = 0.03
 
 def obtener_velas(simbolo: str) -> "pd.DataFrame":
     """
-    Velas 1h para `simbolo`, vía Binance primero y Yahoo Finance como
+    Velas 1h para `símbolo`, vía Binance primero y Yahoo Finance como
     respaldo si Binance falla (típicamente HTTP 451 en runners de CI
     de EE.UU.). Lanza RuntimeError si ambas fuentes fallan.
     """
@@ -81,7 +81,7 @@ def calcular_indicadores(simbolo: str) -> dict:
     calcula RSI/EMA/SMA200 con pandas_ta.
 
     Lanza RuntimeError si no se pudieron obtener datos de ninguna
-    fuente (se deja propagar para que el llamador decida si omite esa
+    fuente (se deja propagar para que quien llame decida si omite esa
     moneda).
     """
     df = obtener_velas(simbolo)
@@ -129,8 +129,8 @@ def pd_isna(valor) -> bool:
 
 
 def evaluar_senal(indicadores: dict) -> dict | None:
-    """Aplica la regla de entrada validada por backtesting (360 dias),
-    exactamente como esta documentada - sin criterio adicional:
+    """Aplica la regla de entrada validada por backtesting (360 días),
+    exactamente como está documentada - sin criterio adicional:
 
     LARGO solo si: precio > SMA200 Y (RSI < 30 O cruce dorado reciente)
     CORTO solo si: precio < SMA200 Y (RSI > 70 O cruce de la muerte reciente)
@@ -178,22 +178,22 @@ def armar_mensaje(resultados: list[dict], senales: list[dict]) -> str:
     lineas.append("")
 
     if senales:
-        lineas.append("*Senales de entrada:*")
+        lineas.append("*Señales de entrada:*")
         for s in senales:
             lineas.append(
                 f"*{s['simbolo']}* - {s['direccion']}\n"
                 f"  Entrada: ${s['precio_entrada']:,.4f}\n"
                 f"  Stop-loss: ${s['stop_loss']:,.4f}\n"
                 f"  Take-profit: ${s['take_profit']:,.4f}\n"
-                f"  Razon: {s['razon']}"
+                f"  Razón: {s['razon']}"
             )
     else:
-        lineas.append("Sin senales de entrada validas en este momento.")
+        lineas.append("Sin señales de entrada válidas en este momento.")
 
     lineas.append("")
     lineas.append(
-        "Basado en backtesting de 360 dias, sin comisiones/slippage. "
-        "No es asesoria financiera."
+        "Basado en backtesting de 360 días, sin comisiones/slippage. "
+        "No es asesoría financiera."
     )
 
     return "\n".join(lineas)
@@ -218,7 +218,7 @@ def main() -> int:
             senales.append(senal)
 
     if not resultados:
-        logger.error("No se pudo calcular indicadores para ninguna moneda, no se envia mensaje")
+        logger.error("No se pudo calcular indicadores para ninguna moneda, no se envía mensaje")
         return 1
 
     mensaje = armar_mensaje(resultados, senales)
