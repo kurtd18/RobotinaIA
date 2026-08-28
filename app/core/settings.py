@@ -10,7 +10,7 @@ class Settings:
     VERSION = "0.1.0"
     AUTHOR = "Elkin Ahumada"
 
-    DEBUG = True
+    DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
     # En tu PC no hace falta configurar nada, usa "robotinaia.db" tal cual.
     # En Railway, se define la variable de entorno DATABASE_PATH apuntando
