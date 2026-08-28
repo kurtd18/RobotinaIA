@@ -1,11 +1,6 @@
 name: Crypto Alerts
 
 on:
-  schedule:
-    - cron: '7 14 * * *'   # ~9:07 AM Colombia
-    - cron: '7 18 * * *'   # ~1:07 PM Colombia
-    - cron: '7 22 * * *'   # ~5:07 PM Colombia
-    - cron: '43 23 * * *'  # PRUEBA TEMPORAL 6:32 PM Colombia -- borrar después de confirmar
   workflow_dispatch: {}
 
 jobs:
