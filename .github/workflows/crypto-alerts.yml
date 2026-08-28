@@ -3,24 +3,30 @@ name: Crypto Alerts
 on:
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
 jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout RobotinaIA
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
       - name: Checkout crypto-trading-desk plugin
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
           repository: hugoguerrap/crypto-claude-desk
+          ref: 298cfd58408aa86ef3c7ce863c0c19858636df7a  # main @ 2026-08-27
           path: crypto-alerts/crypto-trading-desk
 
       - name: Install uv
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
+        env:
+          UV_VERSION: "0.12.7"
 
       - name: Install Claude Code CLI
-        run: npm install -g @anthropic-ai/claude-code
+        run: npm install -g @anthropic-ai/claude-code@2.1.248
 
       - name: Install plugin dependencies
         working-directory: crypto-alerts/crypto-trading-desk
