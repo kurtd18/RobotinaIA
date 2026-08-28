@@ -35,3 +35,14 @@ estructura*.txt
 
 # Releases empaquetadas (usar GitHub Releases en su lugar)
 releases/*.zip
+
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+id_rsa*
+id_ed25519*
+credentials.json
+service-account*.json
+releases/**/.env
