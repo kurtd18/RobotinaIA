@@ -13,29 +13,16 @@ jobs:
       - name: Checkout RobotinaIA
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
-      - name: Checkout crypto-trading-desk plugin
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
         with:
-          repository: hugoguerrap/crypto-claude-desk
-          ref: 298cfd58408aa86ef3c7ce863c0c19858636df7a  # main @ 2026-08-27
-          path: crypto-alerts/crypto-trading-desk
+          python-version: "3.13"
 
-      - name: Install uv
-        run: curl -LsSf https://astral.sh/uv/0.12.7/install.sh | sh
-
-      - name: Install Claude Code CLI
-        run: npm install -g @anthropic-ai/claude-code@2.1.248
-
-      - name: Install plugin dependencies
-        working-directory: crypto-alerts/crypto-trading-desk
-        run: uv sync
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
       - name: Run analysis and notify
-        working-directory: crypto-alerts
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          chmod +x bin/run-and-notify.sh
-          ./bin/run-and-notify.sh
+        run: python crypto-alerts/analyze_and_notify.py
