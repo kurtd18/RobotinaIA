@@ -25,11 +25,23 @@ import pandas_ta as ta
 from loguru import logger
 
 from app.providers.binance_provider import BinanceProvider, BinanceProviderError
+from app.providers.yahoo_provider import YahooProvider, YahooProviderError
 from app.services.telegram_service import enviar_mensaje_telegram
 
 SIMBOLOS = ["XRP", "ETH", "DOGE", "SOL"]
 INTERVALO = "1h"
 VELAS_NECESARIAS = 250  # margen sobre las 200 que pide la SMA200
+
+# La API spot de Binance (api.binance.com) devuelve HTTP 451 (bloqueo
+# geografico) desde runners de GitHub Actions alojados en EE.UU. Yahoo
+# Finance no tiene esa restriccion, asi que sirve como respaldo -
+# mismo shape de DataFrame (columna "Close"), solo cambia el simbolo.
+SIMBOLO_A_TICKER_YAHOO = {
+    "XRP": "XRP-USD",
+    "ETH": "ETH-USD",
+    "DOGE": "DOGE-USD",
+    "SOL": "SOL-USD",
+}
 
 RSI_PERIODO = 14
 EMA_RAPIDA = 12
@@ -44,14 +56,35 @@ STOP_LOSS_PCT = 0.05
 TAKE_PROFIT_PCT = 0.03
 
 
-def calcular_indicadores(simbolo: str) -> dict:
-    """Descarga velas 1h de Binance y calcula RSI/EMA/SMA200 con pandas_ta.
-
-    Lanza BinanceProviderError si no se pudieron obtener datos (se deja
-    propagar para que el llamador decida si omite esa moneda).
+def obtener_velas(simbolo: str) -> "pd.DataFrame":
     """
-    provider = BinanceProvider()
-    df = provider.get_ohlcv(f"{simbolo}USDT", INTERVALO, num_velas=VELAS_NECESARIAS)
+    Velas 1h para `simbolo`, vía Binance primero y Yahoo Finance como
+    respaldo si Binance falla (típicamente HTTP 451 en runners de CI
+    de EE.UU.). Lanza RuntimeError si ambas fuentes fallan.
+    """
+    try:
+        return BinanceProvider().get_ohlcv(f"{simbolo}USDT", INTERVALO, num_velas=VELAS_NECESARIAS)
+    except BinanceProviderError as e_binance:
+        logger.warning(f"Binance falló para {simbolo} ({e_binance}), probando Yahoo Finance...")
+        try:
+            ticker = SIMBOLO_A_TICKER_YAHOO[simbolo]
+            return YahooProvider().get_hourly_history(ticker, period="30d")
+        except YahooProviderError as e_yahoo:
+            raise RuntimeError(
+                f"No se pudo obtener velas de {simbolo} ni por Binance ni por Yahoo Finance "
+                f"(Binance: {e_binance} | Yahoo: {e_yahoo})"
+            ) from e_yahoo
+
+
+def calcular_indicadores(simbolo: str) -> dict:
+    """Descarga velas 1h (Binance con respaldo en Yahoo Finance) y
+    calcula RSI/EMA/SMA200 con pandas_ta.
+
+    Lanza RuntimeError si no se pudieron obtener datos de ninguna
+    fuente (se deja propagar para que el llamador decida si omite esa
+    moneda).
+    """
+    df = obtener_velas(simbolo)
 
     cierre = df["Close"]
     rsi = ta.rsi(cierre, length=RSI_PERIODO)
@@ -60,7 +93,7 @@ def calcular_indicadores(simbolo: str) -> dict:
     sma200 = ta.sma(cierre, length=SMA_TENDENCIA)
 
     if rsi is None or sma200 is None or sma200.dropna().empty:
-        raise BinanceProviderError(
+        raise RuntimeError(
             f"Datos insuficientes para calcular indicadores de {simbolo} "
             f"({len(df)} velas disponibles, se necesitan al menos {SMA_TENDENCIA})"
         )
@@ -173,7 +206,7 @@ def main() -> int:
     for simbolo in SIMBOLOS:
         try:
             indicadores = calcular_indicadores(simbolo)
-        except BinanceProviderError as e:
+        except RuntimeError as e:
             logger.error(f"Omitiendo {simbolo}: {e}")
             continue
 

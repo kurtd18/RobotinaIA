@@ -56,6 +56,22 @@ class YahooProvider(MarketDataProvider):
             symbol, period=period, interval="1d", contexto=f"historial diario {symbol}"
         )
 
+    def get_hourly_history(self, symbol: str, period: str = "30d") -> pd.DataFrame:
+        """
+        Historial en velas de 1h (interval="1h") para `symbol` en la
+        ventana `period` (ej. "30d" da ~700 velas, margen de sobra para
+        una SMA200). yfinance limita datos intradía a los últimos 730
+        días, así que `period` no puede pedir más que eso.
+
+        Usado como respaldo de BinanceProvider.get_ohlcv() para runners
+        de CI alojados en EE.UU., donde la API spot de Binance responde
+        HTTP 451 (bloqueo geográfico) - Yahoo Finance no tiene esa
+        restricción.
+        """
+        return self._historial_con_reintentos(
+            symbol, period=period, interval="1h", contexto=f"historial horario {symbol}"
+        )
+
     def _historial_con_reintentos(
         self, symbol: str, period: str, interval: str, contexto: str
     ) -> pd.DataFrame:
