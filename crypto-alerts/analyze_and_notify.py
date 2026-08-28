@@ -167,13 +167,25 @@ def evaluar_senal(indicadores: dict) -> dict | None:
     return None
 
 
+def armar_tabla(resultados: list[dict]) -> str:
+    """Tabla de precio/RSI/tendencia en bloque de código (monoespaciado),
+    para que Telegram alinee las columnas de verdad - el Markdown
+    "legacy" que usa el bot no soporta tablas, solo texto plano y
+    bloques ```pre```, que sí respetan el ancho fijo de cada columna.
+    """
+    encabezado = f"{'Moneda':<7}{'Precio':>14}{'RSI':>8}  Tendencia"
+    filas = [encabezado, "-" * len(encabezado)]
+    for r in resultados:
+        tendencia = "Arriba" if r["tendencia_alcista"] else "Bajista"
+        precio_fmt = f"${r['precio']:,.4f}"
+        filas.append(f"{r['simbolo']:<7}{precio_fmt:>14}{r['rsi']:>8.2f}  {tendencia}")
+    return "```\n" + "\n".join(filas) + "\n```"
+
+
 def armar_mensaje(resultados: list[dict], senales: list[dict]) -> str:
     lineas = ["*Crypto Alerts*", ""]
 
-    lineas.append("Precio | RSI | Tendencia")
-    for r in resultados:
-        tendencia = "Arriba" if r["tendencia_alcista"] else "Bajista"
-        lineas.append(f"*{r['simbolo']}*: ${r['precio']:,.4f} | RSI {r['rsi']:.2f} | {tendencia}")
+    lineas.append(armar_tabla(resultados))
 
     lineas.append("")
 
