@@ -2,6 +2,10 @@ name: Crypto Alerts
 
 on:
   workflow_dispatch: {}
+  schedule:
+    - cron: '7 14 * * *'   # ~9:07 AM Colombia
+    - cron: '7 18 * * *'   # ~1:07 PM Colombia
+    - cron: '7 22 * * *'   # ~5:07 PM Colombia
 
 permissions:
   contents: read
