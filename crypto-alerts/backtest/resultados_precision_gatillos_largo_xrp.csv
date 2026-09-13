@@ -1,0 +1,10 @@
+condición,veces_activada,%_del_tiempo_activa,precisión_%,falsos_positivos_%,lift_vs_azar
+RSI < 30,724,4.2,50.4,49.6,1.41
+MFI < 20,836,4.8,46.3,53.7,1.3
+Bollinger %B < 0,1005,5.8,43.4,56.6,1.21
+Volumen > 2x promedio,1440,8.3,41.0,59.0,1.15
+Cruce EMA12/26 dorado (últimas 6 velas),1868,10.8,40.1,59.9,1.12
+CCI < -100,3515,20.3,39.7,60.3,1.11
+Volumen > 1.5x promedio,2897,16.7,38.4,61.6,1.07
+Estocástico < 20,2672,15.4,35.5,64.5,0.99
+Williams %R < -80,3095,17.9,35.2,64.8,0.98

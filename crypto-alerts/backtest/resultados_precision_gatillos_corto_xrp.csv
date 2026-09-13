@@ -1,0 +1,10 @@
+condición,veces_activada,%_del_tiempo_activa,precisión_%,falsos_positivos_%,lift_vs_azar
+RSI > 70,845,4.9,61.4,38.6,1.65
+MFI > 80,741,4.3,48.9,51.1,1.31
+Bollinger %B > 1,980,5.7,43.9,56.1,1.18
+Estocástico > 80,2744,15.8,42.9,57.1,1.15
+CCI > 100,3302,19.1,42.4,57.6,1.14
+Williams %R > -20,3131,18.1,41.3,58.7,1.11
+Volumen > 2x promedio,1440,8.3,38.9,61.1,1.04
+Volumen > 1.5x promedio,2897,16.7,37.4,62.6,1.01
+Cruce EMA12/26 muerte (últimas 6 velas),1877,10.8,37.1,62.9,1.0
