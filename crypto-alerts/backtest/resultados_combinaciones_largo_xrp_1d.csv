@@ -1,0 +1,9 @@
+condición,veces_activada,%_del_tiempo_activa,precisión_%,falsos_positivos_%,lift_vs_azar
+RSI < 30 Y MFI < 20,2,0.4,100.0,0.0,6.78
+MFI < 20 Y Bollinger %B < 0,2,0.4,100.0,0.0,6.78
+RSI < 30 Y MFI < 20 Y Bollinger %B < 0,1,0.2,100.0,0.0,6.78
+Bollinger %B < 0 (solo),24,4.5,54.2,45.8,3.67
+RSI < 30 Y Bollinger %B < 0,10,1.9,50.0,50.0,3.39
+RSI < 30 (solo),14,2.6,42.9,57.1,2.91
+MFI < 20 (solo),18,3.4,38.9,61.1,2.64
+RSI < 30 O MFI < 20 (unión),30,5.7,36.7,63.3,2.49

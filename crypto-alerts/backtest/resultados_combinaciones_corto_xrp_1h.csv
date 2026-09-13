@@ -1,0 +1,9 @@
+condición,veces_activada,%_del_tiempo_activa,precisión_%,falsos_positivos_%,lift_vs_azar
+RSI > 70 Y MFI > 80 Y Bollinger %B > 1,182,1.1,62.6,37.4,1.68
+RSI > 70 Y MFI > 80,379,2.2,62.5,37.5,1.68
+RSI > 70 (solo),845,4.9,61.4,38.6,1.65
+RSI > 70 Y Bollinger %B > 1,400,2.3,61.0,39.0,1.64
+MFI > 80 Y Bollinger %B > 1,245,1.4,54.3,45.7,1.46
+RSI > 70 O MFI > 80 (unión),1207,7.0,53.4,46.6,1.43
+MFI > 80 (solo),741,4.3,48.9,51.1,1.31
+Bollinger %B > 1 (solo),980,5.7,43.9,56.1,1.18
