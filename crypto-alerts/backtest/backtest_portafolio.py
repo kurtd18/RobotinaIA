@@ -91,37 +91,31 @@ def generar_senales(df: pd.DataFrame) -> list[tuple[pd.Timestamp, str]]:
     cruce), pero sin cooldown ni límite de capital - eso se aplica después,
     a nivel de portafolio."""
     senales = []
-    ultimo_cruce_visto = None
     checkpoints = [i for i in range(WARMUP, len(df) - 1) if df.index[i].hour in CRON_DESPUES_HORAS_UTC]
 
     for i in checkpoints:
-        cruce, cruce_ts = None, None
-        for k in range(i - CRON_DESPUES_VENTANA + 1, i + 1):
-            if k < 0 or pd.isna(df["cruce"].iloc[k]):
-                continue
-            cruce, cruce_ts = df["cruce"].iloc[k], df.index[k]
-
-        if cruce_ts is not None and cruce_ts == ultimo_cruce_visto:
-            cruce = None
-        if cruce_ts is not None:
-            ultimo_cruce_visto = cruce_ts
-
         row = df.iloc[i]
         trend = row["sma_trend"]
         if pd.isna(trend):
             continue
 
+        # Cruce EMA quitado como gatillo: en el análisis de precisión en 4h
+        # (resultados_precision_4h_*_todas_monedas.csv) salió con lift <1
+        # (peor que el azar) en las 4 monedas - diluía la mejora del lado
+        # RSI. Para LARGO se usa el gatillo triple (validado: sube la
+        # precisión de 57.0%->66.1% en las 4 monedas); para CORTO el
+        # triple no ayudó (44.7% vs 46.9% del RSI solo), así que se deja
+        # RSI solo de ese lado.
         if USAR_GATILLO_TRIPLE:
             sobreventa = (row["rsi"] < RSI_OVERSOLD) and (row["mfi14"] < MFI_SOBREVENTA) and (row["bb_pct_b"] < 0)
-            sobrecompra = (row["rsi"] > RSI_OVERBOUGHT) and (row["mfi14"] > MFI_SOBRECOMPRA) and (row["bb_pct_b"] > 1)
         else:
             sobreventa = row["rsi"] < RSI_OVERSOLD
-            sobrecompra = row["rsi"] > RSI_OVERBOUGHT
+        sobrecompra = row["rsi"] > RSI_OVERBOUGHT
 
         direccion = None
-        if row["close"] > trend and (sobreventa or cruce == "dorado"):
+        if row["close"] > trend and sobreventa:
             direccion = "LARGO"
-        elif row["close"] < trend and (sobrecompra or cruce == "muerte"):
+        elif row["close"] < trend and sobrecompra:
             direccion = "CORTO"
         if direccion:
             senales.append((df.index[i], direccion))
