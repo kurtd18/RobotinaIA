@@ -1,0 +1,32 @@
+condición,frecuencia_%,n
+Precio > EMA50,89.6,163
+DI+ > DI- (presión compradora),88.3,163
+MACD hist. positivo,86.5,163
+CMF > 0 (flujo comprador),83.4,163
+Williams %R > -20 (sobrecompra),83.4,163
+OBV subiendo (últimas 20 velas),80.4,163
+CCI > 100 (sobrecompra),78.5,163
+Precio > SMA200 (tendencia alcista),71.6,162
+Estocástico>80,62.6,163
+ADX > 25 (tendencia fuerte),60.1,163
+Volatilidad 20 velas elevada (top 25% histórico),55.2,163
+Bollinger %B > 1 (fuera banda superior),46.0,163
+Volumen > 1.5x su promedio 20 velas,46.0,163
+RSI>70 (sobrecompra),41.1,163
+Volumen > 2x su promedio 20 velas,28.8,163
+Precio < SMA200 (tendencia bajista),28.4,162
+Cruce EMA12/26 dorado (últimas 6 velas),22.1,163
+"MFI > 80 (dinero entrando, sobrecompra)",20.9,163
+MACD cruzando señal (últimas 3 velas),20.2,163
+OBV bajando (últimas 20 velas),19.6,163
+CMF < 0 (flujo vendedor),16.6,163
+MACD hist. negativo,13.5,163
+DI- > DI+ (presión vendedora),11.7,163
+Precio < EMA50,10.4,163
+Cruce EMA12/26 muerte (últimas 6 velas),3.1,163
+CCI < -100 (sobreventa),1.2,163
+RSI<30 (sobreventa),0.6,163
+Bollinger %B < 0 (fuera banda inferior),0.0,163
+Estocástico<20,0.0,163
+"MFI < 20 (dinero saliendo, sobreventa)",0.0,163
+Williams %R < -80 (sobreventa),0.0,163
