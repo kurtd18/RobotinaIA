@@ -34,12 +34,13 @@ import numpy as np
 import pandas as pd
 
 EXCHANGE_ID = "binance"
-# Top 15 por capitalización/liquidez con par USDT en Binance spot -
-# ampliado desde las 4 monedas originales (XRP/ETH/DOGE/SOL) para tener
-# más señales candidatas sin bajar la calidad del filtro de entrada.
-SYMBOLS = ["BTC/USDT", "ETH/USDT", "BNB/USDT", "XRP/USDT", "SOL/USDT",
-           "ADA/USDT", "DOGE/USDT", "TRX/USDT", "LINK/USDT", "AVAX/USDT",
-           "DOT/USDT", "LTC/USDT", "BCH/USDT", "ATOM/USDT", "UNI/USDT"]
+# Universo seleccionado tras medir precisión del gatillo por moneda
+# (resultados_precision_por_moneda.csv): de las 15 originales, solo estas
+# 7 tienen precisión >=55% en LARGO Y >=50% en CORTO (las demás - BTC,
+# TRX, BCH, UNI por precisión baja en ambos lados; ETH, BNB, SOL por
+# precisión floja del lado CORTO - diluían el resultado del portafolio).
+SYMBOLS = ["XRP/USDT", "ADA/USDT", "DOGE/USDT", "LINK/USDT",
+           "AVAX/USDT", "DOT/USDT", "LTC/USDT"]
 TIMEFRAME = "1h"
 LOOKBACK_DAYS = 730
 
