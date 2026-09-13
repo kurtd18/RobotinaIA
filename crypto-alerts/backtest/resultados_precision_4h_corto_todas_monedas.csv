@@ -1,0 +1,6 @@
+condición,veces_activada,%_del_tiempo_activa,precisión_%,falsos_positivos_%,lift_vs_azar
+RSI > 70 (solo),1028,6.1,46.9,53.1,1.61
+RSI+MFI+Bollinger (triple),244,1.5,44.7,55.3,1.54
+Bollinger %B > 1 (solo),1014,6.1,44.1,55.9,1.52
+MFI > 80 (solo),882,5.3,41.5,58.5,1.43
+Cruce EMA muerte (últimas 24h),1805,10.8,17.3,82.7,0.59

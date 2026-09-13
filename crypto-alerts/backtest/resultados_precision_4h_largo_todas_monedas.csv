@@ -1,0 +1,6 @@
+condición,veces_activada,%_del_tiempo_activa,precisión_%,falsos_positivos_%,lift_vs_azar
+RSI+MFI+Bollinger (triple),180,1.1,66.1,33.9,2.24
+RSI < 30 (solo),802,4.8,57.0,43.0,1.93
+MFI < 20 (solo),847,5.1,47.8,52.2,1.62
+Bollinger %B < 0 (solo),967,5.8,46.5,53.5,1.58
+Cruce EMA dorado (últimas 24h),1807,10.8,18.2,81.8,0.62

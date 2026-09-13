@@ -32,6 +32,15 @@ from backtest_cron_gaps import (
 )
 import ccxt
 
+# Si True, usa el gatillo triple RSI+MFI+Bollinger%B (validado en
+# analisis_combinaciones_xrp.py: sube la precisión de 50.4%->61.6% en
+# LARGO sobre XRP en 1h) en vez de solo RSI, manteniendo igual el resto
+# de la regla (SMA200 obligatoria, cruce EMA como alternativa). Se aplica
+# a las 4 monedas, aunque el análisis que lo respalda solo se hizo con
+# datos de XRP - es una extrapolación, no algo validado por moneda.
+USAR_GATILLO_TRIPLE = True
+MFI_SOBREVENTA, MFI_SOBRECOMPRA = 20, 80
+
 CAPITAL_TOTAL_COP = 10_000_000
 FEE_SPOT = 0.0010     # 0.10% por lado (compra o venta) - usado en LARGO
 FEE_FUTUROS = 0.0005  # 0.05% por lado - usado en CORTO
@@ -55,6 +64,26 @@ TAMANOS_POSICION_COP = [500_000, 1_000_000, 1_500_000, 2_000_000,
 # corridas seguidas - eso fue lo que hundió el resultado al permitir
 # reentradas libres).
 UNA_POSICION_POR_MONEDA = True
+
+
+def agregar_mfi_bollinger(df: pd.DataFrame) -> pd.DataFrame:
+    """MFI(14) y Bollinger %B(20,2), no incluidos en add_indicators() de
+    backtest_cron_gaps.py - se agregan acá para el gatillo triple."""
+    high, low, close, volume = df["high"], df["low"], df["close"], df["volume"]
+
+    precio_tipico = (high + low + close) / 3
+    flujo_dinero = precio_tipico * volume
+    direccion = precio_tipico.diff()
+    flujo_positivo = flujo_dinero.where(direccion > 0, 0.0).rolling(14).sum()
+    flujo_negativo = flujo_dinero.where(direccion < 0, 0.0).rolling(14).sum()
+    ratio_flujo = flujo_positivo / flujo_negativo
+    df["mfi14"] = 100 - (100 / (1 + ratio_flujo))
+
+    sma20, std20 = close.rolling(20).mean(), close.rolling(20).std()
+    bb_lower, bb_upper = sma20 - 2 * std20, sma20 + 2 * std20
+    df["bb_pct_b"] = (close - bb_lower) / (bb_upper - bb_lower)
+
+    return df
 
 
 def generar_senales(df: pd.DataFrame) -> list[tuple[pd.Timestamp, str]]:
@@ -82,10 +111,17 @@ def generar_senales(df: pd.DataFrame) -> list[tuple[pd.Timestamp, str]]:
         if pd.isna(trend):
             continue
 
+        if USAR_GATILLO_TRIPLE:
+            sobreventa = (row["rsi"] < RSI_OVERSOLD) and (row["mfi14"] < MFI_SOBREVENTA) and (row["bb_pct_b"] < 0)
+            sobrecompra = (row["rsi"] > RSI_OVERBOUGHT) and (row["mfi14"] > MFI_SOBRECOMPRA) and (row["bb_pct_b"] > 1)
+        else:
+            sobreventa = row["rsi"] < RSI_OVERSOLD
+            sobrecompra = row["rsi"] > RSI_OVERBOUGHT
+
         direccion = None
-        if row["close"] > trend and (row["rsi"] < RSI_OVERSOLD or cruce == "dorado"):
+        if row["close"] > trend and (sobreventa or cruce == "dorado"):
             direccion = "LARGO"
-        elif row["close"] < trend and (row["rsi"] > RSI_OVERBOUGHT or cruce == "muerte"):
+        elif row["close"] < trend and (sobrecompra or cruce == "muerte"):
             direccion = "CORTO"
         if direccion:
             senales.append((df.index[i], direccion))
@@ -222,6 +258,8 @@ def main():
         print(f"Procesando {symbol} ...")
         df = fetch_ohlcv_full(exchange, symbol, TIMEFRAME, since_ms)
         df = add_indicators(df)
+        if USAR_GATILLO_TRIPLE:
+            df = agregar_mfi_bollinger(df)
         dfs[symbol] = df
         senales_por_symbol[symbol] = generar_senales(df)
         print(f"  {len(senales_por_symbol[symbol])} señales generadas (sin restricción de capital)")
