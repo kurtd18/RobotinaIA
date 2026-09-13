@@ -16,6 +16,7 @@ arma con f-strings, no con texto generado. No hay ningún paso de LLM en
 esta ruta.
 """
 
+import json
 import sys
 from pathlib import Path
 
@@ -27,6 +28,8 @@ from loguru import logger
 from app.providers.binance_provider import BinanceProvider, BinanceProviderError
 from app.providers.yahoo_provider import YahooProvider, YahooProviderError
 from app.services.telegram_service import enviar_mensaje_telegram
+
+ARCHIVO_ESTADO_CRUCES = Path(__file__).resolve().parent / "state" / "ultimos_cruces.json"
 
 SIMBOLOS = ["XRP", "ETH", "DOGE", "SOL"]
 INTERVALO = "1h"
@@ -50,7 +53,12 @@ SMA_TENDENCIA = 200
 
 RSI_SOBREVENTA = 30
 RSI_SOBRECOMPRA = 70
-VELAS_CRUCE_RECIENTE = 3
+# El workflow corre cada 4h; se deja margen extra (6h) sobre eso por si
+# alguna corrida se retrasa o Binance no tiene aún la vela más reciente.
+# El estado persistido (ARCHIVO_ESTADO_CRUCES) es la defensa real contra
+# perder o duplicar cruces entre corridas - esta ventana es solo un límite
+# superior de cuántas velas hacia atrás vale la pena mirar.
+VELAS_CRUCE_RECIENTE = 6
 
 STOP_LOSS_PCT = 0.05
 TAKE_PROFIT_PCT = 0.03
@@ -105,14 +113,17 @@ def calcular_indicadores(simbolo: str) -> dict:
 
     diff_ema = ema_rapida - ema_lenta
     cruce = None  # None, "dorado" o "muerte"
+    cruce_tiempo = None  # timestamp (str ISO) de la vela donde ocurrió
     for i in range(-VELAS_CRUCE_RECIENTE, 0):
         anterior, actual = diff_ema.iloc[i - 1], diff_ema.iloc[i]
         if pd_isna(anterior) or pd_isna(actual):
             continue
         if anterior < 0 and actual > 0:
             cruce = "dorado"
+            cruce_tiempo = diff_ema.index[i].isoformat()
         elif anterior > 0 and actual < 0:
             cruce = "muerte"
+            cruce_tiempo = diff_ema.index[i].isoformat()
 
     return {
         "simbolo": simbolo,
@@ -120,6 +131,7 @@ def calcular_indicadores(simbolo: str) -> dict:
         "rsi": rsi_actual,
         "tendencia_alcista": tendencia_alcista,
         "cruce_reciente": cruce,
+        "cruce_tiempo": cruce_tiempo,
     }
 
 
@@ -128,17 +140,49 @@ def pd_isna(valor) -> bool:
     return valor is None or (isinstance(valor, float) and math.isnan(valor))
 
 
-def evaluar_senal(indicadores: dict) -> dict | None:
+def cargar_estado_cruces() -> dict:
+    """Último cruce EMA (timestamp ISO) ya notificado por símbolo.
+
+    Persistido en un archivo versionado en el repo (el workflow lo
+    commitea tras cada corrida) porque GitHub Actions no comparte estado
+    entre ejecuciones por sí solo. Sin esto, VELAS_CRUCE_RECIENTE sería
+    la única defensa contra perder cruces en el hueco entre corridas, y
+    ampliarla demasiado termina re-notificando el mismo cruce viejo en
+    varias corridas seguidas.
+    """
+    if not ARCHIVO_ESTADO_CRUCES.exists():
+        return {}
+    try:
+        return json.loads(ARCHIVO_ESTADO_CRUCES.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        logger.warning(f"No se pudo leer el estado de cruces ({e}), se asume vacío")
+        return {}
+
+
+def guardar_estado_cruces(estado: dict) -> None:
+    ARCHIVO_ESTADO_CRUCES.parent.mkdir(parents=True, exist_ok=True)
+    ARCHIVO_ESTADO_CRUCES.write_text(
+        json.dumps(estado, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+
+def evaluar_senal(indicadores: dict, ultimo_cruce_notificado: str | None) -> dict | None:
     """Aplica la regla de entrada validada por backtesting (360 días),
     exactamente como está documentada - sin criterio adicional:
 
     LARGO solo si: precio > SMA200 Y (RSI < 30 O cruce dorado reciente)
     CORTO solo si: precio < SMA200 Y (RSI > 70 O cruce de la muerte reciente)
+
+    Un cruce reciente solo cuenta si es distinto al último ya notificado
+    para este símbolo (`ultimo_cruce_notificado`), para no repetir la
+    misma señal de cruce en cada corrida mientras siga dentro de
+    VELAS_CRUCE_RECIENTE.
     """
     precio = indicadores["precio"]
     rsi = indicadores["rsi"]
     alcista = indicadores["tendencia_alcista"]
-    cruce = indicadores["cruce_reciente"]
+    cruce_tiempo = indicadores["cruce_tiempo"]
+    cruce = indicadores["cruce_reciente"] if cruce_tiempo != ultimo_cruce_notificado else None
 
     if alcista and (rsi < RSI_SOBREVENTA or cruce == "dorado"):
         razon = "precio sobre SMA200"
@@ -214,6 +258,7 @@ def armar_mensaje(resultados: list[dict], senales: list[dict]) -> str:
 def main() -> int:
     resultados = []
     senales = []
+    estado_cruces = cargar_estado_cruces()
 
     for simbolo in SIMBOLOS:
         try:
@@ -224,10 +269,15 @@ def main() -> int:
 
         resultados.append(indicadores)
 
-        senal = evaluar_senal(indicadores)
+        senal = evaluar_senal(indicadores, estado_cruces.get(simbolo))
         if senal:
             senal["simbolo"] = simbolo
             senales.append(senal)
+
+        if indicadores["cruce_tiempo"] is not None:
+            estado_cruces[simbolo] = indicadores["cruce_tiempo"]
+
+    guardar_estado_cruces(estado_cruces)
 
     if not resultados:
         logger.error("No se pudo calcular indicadores para ninguna moneda, no se envía mensaje")

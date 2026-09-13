@@ -3,12 +3,18 @@ name: Crypto Alerts
 on:
   workflow_dispatch: {}
   schedule:
+    # Cada 4h parejas (antes había un hueco de 16h entre 22:07 y 14:07
+    # UTC del día siguiente, donde un cruce EMA dorado/de la muerte
+    # podía ocurrir y nunca caer dentro de la ventana de detección).
+    - cron: '7 2 * * *'    # ~9:07 PM Colombia (día anterior)
+    - cron: '7 6 * * *'    # ~1:07 AM Colombia
+    - cron: '7 10 * * *'   # ~5:07 AM Colombia
     - cron: '7 14 * * *'   # ~9:07 AM Colombia
     - cron: '7 18 * * *'   # ~1:07 PM Colombia
     - cron: '7 22 * * *'   # ~5:07 PM Colombia
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   notify:
@@ -30,3 +36,13 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python crypto-alerts/analyze_and_notify.py
+
+      - name: Guardar estado de cruces detectados
+        run: |
+          if [ -n "$(git status --porcelain crypto-alerts/state/)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add crypto-alerts/state/
+            git commit -m "Actualizar estado de cruces EMA detectados [skip ci]"
+            git push
+          fi
