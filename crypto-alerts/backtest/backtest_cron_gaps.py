@@ -34,7 +34,12 @@ import numpy as np
 import pandas as pd
 
 EXCHANGE_ID = "binance"
-SYMBOLS = ["XRP/USDT", "ETH/USDT", "DOGE/USDT", "SOL/USDT"]
+# Top 15 por capitalización/liquidez con par USDT en Binance spot -
+# ampliado desde las 4 monedas originales (XRP/ETH/DOGE/SOL) para tener
+# más señales candidatas sin bajar la calidad del filtro de entrada.
+SYMBOLS = ["BTC/USDT", "ETH/USDT", "BNB/USDT", "XRP/USDT", "SOL/USDT",
+           "ADA/USDT", "DOGE/USDT", "TRX/USDT", "LINK/USDT", "AVAX/USDT",
+           "DOT/USDT", "LTC/USDT", "BCH/USDT", "ATOM/USDT", "UNI/USDT"]
 TIMEFRAME = "1h"
 LOOKBACK_DAYS = 730
 
