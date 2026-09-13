@@ -1,9 +1,9 @@
 symbol,escenario,trades,win_rate_%,pnl_acumulado_%
-XRP/USDT,"ANTES (cron viejo, 3 velas)",40,65.0,13.0
-XRP/USDT,"DESPUES (cron nuevo, 6 velas + dedup)",69,68.1,36.0
-ETH/USDT,"ANTES (cron viejo, 3 velas)",45,66.7,20.0
-ETH/USDT,"DESPUES (cron nuevo, 6 velas + dedup)",65,69.2,40.0
-DOGE/USDT,"ANTES (cron viejo, 3 velas)",50,58.0,-13.0
-DOGE/USDT,"DESPUES (cron nuevo, 6 velas + dedup)",80,66.2,29.0
-SOL/USDT,"ANTES (cron viejo, 3 velas)",51,62.7,6.0
-SOL/USDT,"DESPUES (cron nuevo, 6 velas + dedup)",77,54.5,-44.0
+XRP/USDT,"ANTES (cron viejo, 3 velas)",88,61.4,-3.0
+XRP/USDT,"DESPUES (cron nuevo, 6 velas + dedup)",151,64.9,34.0
+ETH/USDT,"ANTES (cron viejo, 3 velas)",87,59.8,-14.0
+ETH/USDT,"DESPUES (cron nuevo, 6 velas + dedup)",146,63.7,19.0
+DOGE/USDT,"ANTES (cron viejo, 3 velas)",100,66.0,33.0
+DOGE/USDT,"DESPUES (cron nuevo, 6 velas + dedup)",166,68.7,87.0
+SOL/USDT,"ANTES (cron viejo, 3 velas)",109,61.5,-4.0
+SOL/USDT,"DESPUES (cron nuevo, 6 velas + dedup)",167,55.7,-86.0
