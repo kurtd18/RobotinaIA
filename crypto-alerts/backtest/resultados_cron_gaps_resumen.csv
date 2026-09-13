@@ -1,9 +1,13 @@
-symbol,escenario,trades,win_rate_%,pnl_acumulado_%
-XRP/USDT,"ANTES (cron viejo, 3 velas)",88,61.4,-3.0
-XRP/USDT,"DESPUES (cron nuevo, 6 velas + dedup)",151,64.9,34.0
-ETH/USDT,"ANTES (cron viejo, 3 velas)",87,59.8,-14.0
-ETH/USDT,"DESPUES (cron nuevo, 6 velas + dedup)",146,63.7,19.0
-DOGE/USDT,"ANTES (cron viejo, 3 velas)",100,66.0,33.0
-DOGE/USDT,"DESPUES (cron nuevo, 6 velas + dedup)",166,68.7,87.0
-SOL/USDT,"ANTES (cron viejo, 3 velas)",109,61.5,-4.0
-SOL/USDT,"DESPUES (cron nuevo, 6 velas + dedup)",167,55.7,-86.0
+symbol,config_sl_tp,trades,win_rate_%,pnl_acumulado_%,horas_prom_hasta_tp
+XRP/USDT,"actual (5% SL / 3% TP, ratio 1:0.6)",151,64.9,34.0,36.3
+ETH/USDT,"actual (5% SL / 3% TP, ratio 1:0.6)",146,63.7,19.0,33.9
+DOGE/USDT,"actual (5% SL / 3% TP, ratio 1:0.6)",166,68.7,87.0,26.0
+SOL/USDT,"actual (5% SL / 3% TP, ratio 1:0.6)",167,55.7,-86.0,29.7
+XRP/USDT,1:1 (3% SL / 3% TP),166,56.0,63.0,31.7
+ETH/USDT,1:1 (3% SL / 3% TP),165,52.1,21.0,27.6
+DOGE/USDT,1:1 (3% SL / 3% TP),186,55.9,69.0,22.3
+SOL/USDT,1:1 (3% SL / 3% TP),190,45.3,-51.0,20.8
+XRP/USDT,2:1 (3% SL / 6% TP),134,35.8,33.0,62.0
+ETH/USDT,2:1 (3% SL / 6% TP),127,28.3,-57.0,76.3
+DOGE/USDT,2:1 (3% SL / 6% TP),154,37.7,66.0,52.3
+SOL/USDT,2:1 (3% SL / 6% TP),167,32.3,-9.0,38.6

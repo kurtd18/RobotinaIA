@@ -45,10 +45,16 @@ EMA_FAST_PERIOD = 12
 EMA_SLOW_PERIOD = 26
 TREND_SMA_PERIOD = 200
 
-SL_PCT = 5.0
-TP_PCT = 3.0
 MAX_HOLD_HOURS = 14 * 24
 COOLDOWN_HOURS = 24
+
+# Ratios riesgo/beneficio a comparar, todos sobre el cron DESPUES (el que
+# va a producción). "actual" es el que corre hoy en analyze_and_notify.py.
+CONFIGS_SL_TP = {
+    "actual (5% SL / 3% TP, ratio 1:0.6)": (5.0, 3.0),
+    "1:1 (3% SL / 3% TP)": (3.0, 3.0),
+    "2:1 (3% SL / 6% TP)": (3.0, 6.0),
+}
 
 CRON_ANTES_HORAS_UTC = {14, 18, 22}
 CRON_ANTES_VENTANA = 3
@@ -106,7 +112,7 @@ def cruces_reales(df: pd.DataFrame) -> list[tuple[pd.Timestamp, str]]:
     return list(zip(ocurridos.index, ocurridos["cruce"]))
 
 
-def simular_produccion(df, horas_cron, ventana_velas, con_dedup):
+def simular_produccion(df, horas_cron, ventana_velas, con_dedup, sl_pct, tp_pct):
     """Simula el bot corriendo solo en `horas_cron` (UTC), mirando hasta
     `ventana_velas` hacia atrás en busca de un cruce, con o sin dedup por
     timestamp (para reproducir ANTES vs DESPUES).
@@ -155,9 +161,9 @@ def simular_produccion(df, horas_cron, ventana_velas, con_dedup):
 
         entrada = row["close"]
         if direccion == "CORTO":
-            sl, tp = entrada * (1 + SL_PCT / 100), entrada * (1 - TP_PCT / 100)
+            sl, tp = entrada * (1 + sl_pct / 100), entrada * (1 - tp_pct / 100)
         else:
-            sl, tp = entrada * (1 - SL_PCT / 100), entrada * (1 + TP_PCT / 100)
+            sl, tp = entrada * (1 - sl_pct / 100), entrada * (1 + tp_pct / 100)
 
         outcome, exit_i = None, None
         for j in range(i + 1, min(i + 1 + MAX_HOLD_HOURS, len(df))):
@@ -173,9 +179,10 @@ def simular_produccion(df, horas_cron, ventana_velas, con_dedup):
         if outcome is None:
             outcome, exit_i = "TIMEOUT", min(i + MAX_HOLD_HOURS, len(df) - 1)
 
-        pnl = TP_PCT if outcome == "TP" else (-SL_PCT if outcome == "SL" else 0.0)
+        pnl = tp_pct if outcome == "TP" else (-sl_pct if outcome == "SL" else 0.0)
         trades.append({"direccion": direccion, "resultado": outcome, "pnl_pct": pnl,
-                        "entrada_ts": df.index[i], "cruce_usado": cruce})
+                        "entrada_ts": df.index[i], "cruce_usado": cruce,
+                        "horas_hasta_salida": exit_i - i})
         last_exit_idx = exit_i
 
     return pd.DataFrame(trades), cruces_notificados
@@ -183,13 +190,16 @@ def simular_produccion(df, horas_cron, ventana_velas, con_dedup):
 
 def resumen(trades: pd.DataFrame) -> dict:
     if trades.empty:
-        return {"trades": 0, "win_rate_%": 0.0, "pnl_acumulado_%": 0.0}
-    wins = (trades["resultado"] == "TP").sum()
+        return {"trades": 0, "win_rate_%": 0.0, "pnl_acumulado_%": 0.0,
+                "horas_prom_hasta_tp": None}
+    ganadores = trades[trades["resultado"] == "TP"]
     total = len(trades)
+    horas_prom = ganadores["horas_hasta_salida"].mean() if not ganadores.empty else None
     return {
         "trades": total,
-        "win_rate_%": round(wins / total * 100, 1),
+        "win_rate_%": round(len(ganadores) / total * 100, 1),
         "pnl_acumulado_%": round(trades["pnl_pct"].sum(), 1),
+        "horas_prom_hasta_tp": round(horas_prom, 1) if horas_prom is not None else None,
     }
 
 
@@ -197,40 +207,32 @@ def main():
     exchange = getattr(ccxt, EXCHANGE_ID)({"enableRateLimit": True})
     since_ms = int((datetime.now(timezone.utc) - timedelta(days=LOOKBACK_DAYS)).timestamp() * 1000)
 
-    filas_resumen = []
+    dfs = {}
     filas_cruces = []
 
     for symbol in SYMBOLS:
         print(f"Procesando {symbol} ...")
         df = fetch_ohlcv_full(exchange, symbol, TIMEFRAME, since_ms)
         df = add_indicators(df)
+        dfs[symbol] = df
 
         todos_los_cruces = {ts for ts, _tipo in cruces_reales(df) if ts >= df.index[WARMUP]}
-
-        trades_antes, notificados_antes = simular_produccion(
-            df, CRON_ANTES_HORAS_UTC, CRON_ANTES_VENTANA, con_dedup=False
+        # con_dedup no cambia qué cruces se ven, solo si generan señal duplicada -
+        # se usa cualquier config de SL/TP solo para poblar el set de "vistos"
+        _, notificados_antes = simular_produccion(
+            df, CRON_ANTES_HORAS_UTC, CRON_ANTES_VENTANA, con_dedup=False, sl_pct=5.0, tp_pct=3.0
         )
-        trades_despues, notificados_despues = simular_produccion(
-            df, CRON_DESPUES_HORAS_UTC, CRON_DESPUES_VENTANA, con_dedup=True
+        _, notificados_despues = simular_produccion(
+            df, CRON_DESPUES_HORAS_UTC, CRON_DESPUES_VENTANA, con_dedup=True, sl_pct=5.0, tp_pct=3.0
         )
-
-        perdidos_antes = todos_los_cruces - notificados_antes
-        perdidos_despues = todos_los_cruces - notificados_despues
-
-        r_antes, r_despues = resumen(trades_antes), resumen(trades_despues)
-        filas_resumen.append({"symbol": symbol, "escenario": "ANTES (cron viejo, 3 velas)", **r_antes})
-        filas_resumen.append({"symbol": symbol, "escenario": "DESPUES (cron nuevo, 6 velas + dedup)", **r_despues})
-
         filas_cruces.append({
             "symbol": symbol,
             "cruces_totales": len(todos_los_cruces),
-            "perdidos_ANTES": len(perdidos_antes),
-            "perdidos_DESPUES": len(perdidos_despues),
+            "perdidos_ANTES": len(todos_los_cruces - notificados_antes),
+            "perdidos_DESPUES": len(todos_los_cruces - notificados_despues),
         })
 
-    df_resumen = pd.DataFrame(filas_resumen)
     df_cruces = pd.DataFrame(filas_cruces)
-
     print("\n" + "=" * 78)
     print("CRUCES EMA REALES vs CRUCES PERDIDOS POR CADA CRON")
     print("=" * 78)
@@ -241,21 +243,45 @@ def main():
           f"({df_cruces['perdidos_ANTES'].sum() / total_cruces * 100:.1f}%)")
     print(f"Perdidos con cron DESPUES: {df_cruces['perdidos_DESPUES'].sum()} "
           f"({df_cruces['perdidos_DESPUES'].sum() / total_cruces * 100:.1f}%)")
+    df_cruces.to_csv("resultados_cron_gaps_cruces.csv", index=False)
+
+    # A partir de acá, solo el cron DESPUES (el que corre en producción),
+    # comparando distintos ratios de riesgo/beneficio.
+    filas_resumen = []
+    for nombre_config, (sl_pct, tp_pct) in CONFIGS_SL_TP.items():
+        for symbol, df in dfs.items():
+            trades, _ = simular_produccion(
+                df, CRON_DESPUES_HORAS_UTC, CRON_DESPUES_VENTANA, con_dedup=True,
+                sl_pct=sl_pct, tp_pct=tp_pct,
+            )
+            filas_resumen.append({"symbol": symbol, "config_sl_tp": nombre_config, **resumen(trades)})
+
+    df_resumen = pd.DataFrame(filas_resumen)
 
     print("\n" + "=" * 78)
-    print("RESULTADO DE TRADING POR ESCENARIO")
+    print("RESULTADO DE TRADING POR RATIO SL/TP (cron DESPUES, todas las monedas)")
     print("=" * 78)
     print(df_resumen.to_string(index=False))
 
-    for escenario in df_resumen["escenario"].unique():
-        sub = df_resumen[df_resumen["escenario"] == escenario]
+    print("\n" + "-" * 78)
+    print("RESUMEN GLOBAL POR RATIO SL/TP")
+    print("-" * 78)
+    for nombre_config in CONFIGS_SL_TP:
+        sub = df_resumen[df_resumen["config_sl_tp"] == nombre_config]
         t = sub["trades"].sum()
         wr = (sub["trades"] * sub["win_rate_%"]).sum() / t if t else 0
         pnl = sub["pnl_acumulado_%"].sum()
-        print(f"\n{escenario} -> Trades: {t} | Win rate ponderado: {wr:.1f}% | PnL acumulado: {pnl:.1f}%")
+        con_tp = sub.dropna(subset=["horas_prom_hasta_tp"])
+        horas_prom = (
+            (con_tp["horas_prom_hasta_tp"] * con_tp["trades"] * con_tp["win_rate_%"] / 100).sum()
+            / (con_tp["trades"] * con_tp["win_rate_%"] / 100).sum()
+            if not con_tp.empty else None
+        )
+        horas_txt = f"{horas_prom:.1f}h (~{horas_prom / 24:.1f} días)" if horas_prom is not None else "N/A"
+        print(f"\n{nombre_config} -> Trades: {t} | Win rate ponderado: {wr:.1f}% | "
+              f"PnL acumulado: {pnl:.1f}% | Tiempo promedio hasta TP: {horas_txt}")
 
     df_resumen.to_csv("resultados_cron_gaps_resumen.csv", index=False)
-    df_cruces.to_csv("resultados_cron_gaps_cruces.csv", index=False)
     print("\nGuardado: resultados_cron_gaps_resumen.csv, resultados_cron_gaps_cruces.csv")
 
 
