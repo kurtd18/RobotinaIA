@@ -1,5 +1,6 @@
 """
-Análisis de señales cripto (RSI/EMA/SMA200) y notificación por Telegram.
+Análisis de señales cripto (RSI/MFI/Bollinger%B/SMA200) y notificación
+por Telegram.
 
 Reemplaza el paso anterior, que le pedía a un LLM (vía herramientas MCP)
 que calculara y redactara estos indicadores en lenguaje natural. Eso
@@ -9,14 +10,27 @@ siguiente, minutos después) - inaceptable para un sistema que genera
 señales de entrada con dinero real.
 
 Aquí el cálculo es 100% determinístico: mismos datos de entrada ->
-mismo resultado, siempre. pandas_ta calcula RSI/EMA/SMA sobre las velas
-reales de Binance, la regla de entrada (ya validada por backtesting) se
-aplica como código, no como "criterio" de un modelo, y el mensaje se
-arma con f-strings, no con texto generado. No hay ningún paso de LLM en
-esta ruta.
+mismo resultado, siempre. El indicador se calcula sobre las velas
+reales de Binance, la regla de entrada se aplica como código, no como
+"criterio" de un modelo, y el mensaje se arma con f-strings, no con
+texto generado. No hay ningún paso de LLM en esta ruta.
+
+Universo, gatillo de entrada y SL/TP validados en
+crypto-alerts/backtest/ (ver backtest_precision_por_moneda.py,
+backtest_sondeo_sltp.py y los commits asociados):
+  - Universo de 7 monedas seleccionadas por precisión del gatillo (de
+    un universo original de 15, se descartaron BTC/BNB/SOL/TRX/BCH/UNI/
+    ETH por precisión insuficiente en al menos un lado LARGO/CORTO).
+  - El cruce EMA12/26 se eliminó como vía de entrada: medido en 4h sobre
+    las 15 monedas, tenía precisión peor que el azar (lift < 1).
+  - LARGO exige RSI+MFI+Bollinger%B en sobreventa simultánea (el
+    "gatillo triple"), que en backtest da mejor precisión que RSI solo.
+    Para CORTO el triple no mejoró sobre RSI solo, así que ese lado
+    sigue usando solo RSI.
+  - SL 3.5% / TP 1.5% fue la mejor combinación en un sondeo de 81
+    combinaciones (SL y TP de 1% a 5%) sobre este universo y gatillo.
 """
 
-import json
 import sys
 from pathlib import Path
 
@@ -29,9 +43,7 @@ from app.providers.binance_provider import BinanceProvider, BinanceProviderError
 from app.providers.yahoo_provider import YahooProvider, YahooProviderError
 from app.services.telegram_service import enviar_mensaje_telegram
 
-ARCHIVO_ESTADO_CRUCES = Path(__file__).resolve().parent / "state" / "ultimos_cruces.json"
-
-SIMBOLOS = ["XRP", "ETH", "DOGE", "SOL"]
+SIMBOLOS = ["XRP", "ADA", "DOGE", "LINK", "AVAX", "DOT", "LTC"]
 INTERVALO = "1h"
 VELAS_NECESARIAS = 250  # margen sobre las 200 que pide la SMA200
 
@@ -41,27 +53,26 @@ VELAS_NECESARIAS = 250  # margen sobre las 200 que pide la SMA200
 # mismo shape de DataFrame (columna "Close"), solo cambia el símbolo.
 SIMBOLO_A_TICKER_YAHOO = {
     "XRP": "XRP-USD",
-    "ETH": "ETH-USD",
+    "ADA": "ADA-USD",
     "DOGE": "DOGE-USD",
-    "SOL": "SOL-USD",
+    "LINK": "LINK-USD",
+    "AVAX": "AVAX-USD",
+    "DOT": "DOT-USD",
+    "LTC": "LTC-USD",
 }
 
 RSI_PERIODO = 14
-EMA_RAPIDA = 12
-EMA_LENTA = 26
+MFI_PERIODO = 14
+BB_PERIODO = 20
+BB_DESV = 2
 SMA_TENDENCIA = 200
 
 RSI_SOBREVENTA = 30
 RSI_SOBRECOMPRA = 70
-# El workflow corre cada 4h; se deja margen extra (6h) sobre eso por si
-# alguna corrida se retrasa o Binance no tiene aún la vela más reciente.
-# El estado persistido (ARCHIVO_ESTADO_CRUCES) es la defensa real contra
-# perder o duplicar cruces entre corridas - esta ventana es solo un límite
-# superior de cuántas velas hacia atrás vale la pena mirar.
-VELAS_CRUCE_RECIENTE = 6
+MFI_SOBREVENTA = 20
 
-STOP_LOSS_PCT = 0.05
-TAKE_PROFIT_PCT = 0.03
+STOP_LOSS_PCT = 0.035
+TAKE_PROFIT_PCT = 0.015
 
 
 def obtener_velas(simbolo: str) -> "pd.DataFrame":
@@ -86,7 +97,7 @@ def obtener_velas(simbolo: str) -> "pd.DataFrame":
 
 def calcular_indicadores(simbolo: str) -> dict:
     """Descarga velas 1h (Binance con respaldo en Yahoo Finance) y
-    calcula RSI/EMA/SMA200 con pandas_ta.
+    calcula RSI/MFI/Bollinger%B/SMA200 con pandas_ta.
 
     Lanza RuntimeError si no se pudieron obtener datos de ninguna
     fuente (se deja propagar para que quien llame decida si omite esa
@@ -94,118 +105,71 @@ def calcular_indicadores(simbolo: str) -> dict:
     """
     df = obtener_velas(simbolo)
 
-    cierre = df["Close"]
+    cierre, alto, bajo, volumen = df["Close"], df["High"], df["Low"], df["Volume"]
     rsi = ta.rsi(cierre, length=RSI_PERIODO)
-    ema_rapida = ta.ema(cierre, length=EMA_RAPIDA)
-    ema_lenta = ta.ema(cierre, length=EMA_LENTA)
+    mfi = ta.mfi(alto, bajo, cierre, volumen, length=MFI_PERIODO)
+    bbands = ta.bbands(cierre, length=BB_PERIODO, std=BB_DESV)
     sma200 = ta.sma(cierre, length=SMA_TENDENCIA)
 
-    if rsi is None or sma200 is None or sma200.dropna().empty:
+    if rsi is None or mfi is None or bbands is None or sma200 is None or sma200.dropna().empty:
         raise RuntimeError(
             f"Datos insuficientes para calcular indicadores de {simbolo} "
             f"({len(df)} velas disponibles, se necesitan al menos {SMA_TENDENCIA})"
         )
 
+    bb_lower, bb_upper = bbands.iloc[:, 0], bbands.iloc[:, 2]
+    bb_pct_b = (cierre - bb_lower) / (bb_upper - bb_lower)
+
     precio_actual = float(cierre.iloc[-1])
     rsi_actual = float(rsi.iloc[-1])
+    mfi_actual = float(mfi.iloc[-1])
+    bb_pct_b_actual = float(bb_pct_b.iloc[-1])
     sma200_actual = float(sma200.iloc[-1])
     tendencia_alcista = precio_actual > sma200_actual
-
-    diff_ema = ema_rapida - ema_lenta
-    cruce = None  # None, "dorado" o "muerte"
-    cruce_tiempo = None  # timestamp (str ISO) de la vela donde ocurrió
-    for i in range(-VELAS_CRUCE_RECIENTE, 0):
-        anterior, actual = diff_ema.iloc[i - 1], diff_ema.iloc[i]
-        if pd_isna(anterior) or pd_isna(actual):
-            continue
-        if anterior < 0 and actual > 0:
-            cruce = "dorado"
-            cruce_tiempo = diff_ema.index[i].isoformat()
-        elif anterior > 0 and actual < 0:
-            cruce = "muerte"
-            cruce_tiempo = diff_ema.index[i].isoformat()
 
     return {
         "simbolo": simbolo,
         "precio": precio_actual,
         "rsi": rsi_actual,
+        "mfi": mfi_actual,
+        "bb_pct_b": bb_pct_b_actual,
         "tendencia_alcista": tendencia_alcista,
-        "cruce_reciente": cruce,
-        "cruce_tiempo": cruce_tiempo,
     }
 
 
-def pd_isna(valor) -> bool:
-    import math
-    return valor is None or (isinstance(valor, float) and math.isnan(valor))
+def evaluar_senal(indicadores: dict) -> dict | None:
+    """Aplica la regla de entrada validada por backtesting (730 días,
+    universo de 7 monedas, ver docstring del módulo) - sin criterio
+    adicional:
 
-
-def cargar_estado_cruces() -> dict:
-    """Último cruce EMA (timestamp ISO) ya notificado por símbolo.
-
-    Persistido en un archivo versionado en el repo (el workflow lo
-    commitea tras cada corrida) porque GitHub Actions no comparte estado
-    entre ejecuciones por sí solo. Sin esto, VELAS_CRUCE_RECIENTE sería
-    la única defensa contra perder cruces en el hueco entre corridas, y
-    ampliarla demasiado termina re-notificando el mismo cruce viejo en
-    varias corridas seguidas.
-    """
-    if not ARCHIVO_ESTADO_CRUCES.exists():
-        return {}
-    try:
-        return json.loads(ARCHIVO_ESTADO_CRUCES.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError) as e:
-        logger.warning(f"No se pudo leer el estado de cruces ({e}), se asume vacío")
-        return {}
-
-
-def guardar_estado_cruces(estado: dict) -> None:
-    ARCHIVO_ESTADO_CRUCES.parent.mkdir(parents=True, exist_ok=True)
-    ARCHIVO_ESTADO_CRUCES.write_text(
-        json.dumps(estado, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
-
-
-def evaluar_senal(indicadores: dict, ultimo_cruce_notificado: str | None) -> dict | None:
-    """Aplica la regla de entrada validada por backtesting (360 días),
-    exactamente como está documentada - sin criterio adicional:
-
-    LARGO solo si: precio > SMA200 Y (RSI < 30 O cruce dorado reciente)
-    CORTO solo si: precio < SMA200 Y (RSI > 70 O cruce de la muerte reciente)
-
-    Un cruce reciente solo cuenta si es distinto al último ya notificado
-    para este símbolo (`ultimo_cruce_notificado`), para no repetir la
-    misma señal de cruce en cada corrida mientras siga dentro de
-    VELAS_CRUCE_RECIENTE.
+    LARGO solo si: precio > SMA200 Y RSI < 30 Y MFI < 20 Y Bollinger%B < 0
+    CORTO solo si: precio < SMA200 Y RSI > 70
     """
     precio = indicadores["precio"]
     rsi = indicadores["rsi"]
+    mfi = indicadores["mfi"]
+    bb_pct_b = indicadores["bb_pct_b"]
     alcista = indicadores["tendencia_alcista"]
-    cruce_tiempo = indicadores["cruce_tiempo"]
-    cruce = indicadores["cruce_reciente"] if cruce_tiempo != ultimo_cruce_notificado else None
 
-    if alcista and (rsi < RSI_SOBREVENTA or cruce == "dorado"):
-        razon = "precio sobre SMA200"
-        razon += " + RSI en sobreventa" if rsi < RSI_SOBREVENTA else ""
-        razon += " + cruce dorado reciente" if cruce == "dorado" else ""
+    sobreventa_triple = rsi < RSI_SOBREVENTA and mfi < MFI_SOBREVENTA and bb_pct_b < 0
+    sobrecompra = rsi > RSI_SOBRECOMPRA
+
+    if alcista and sobreventa_triple:
         return {
             "direccion": "LARGO",
             "precio_entrada": precio,
             "stop_loss": precio * (1 - STOP_LOSS_PCT),
             "take_profit": precio * (1 + TAKE_PROFIT_PCT),
-            "razon": razon,
+            "razon": "precio sobre SMA200 + RSI/MFI/Bollinger%B en sobreventa simultánea",
         }
 
-    if not alcista and (rsi > RSI_SOBRECOMPRA or cruce == "muerte"):
-        razon = "precio bajo SMA200"
-        razon += " + RSI en sobrecompra" if rsi > RSI_SOBRECOMPRA else ""
-        razon += " + cruce de la muerte reciente" if cruce == "muerte" else ""
+    if not alcista and sobrecompra:
         return {
             "direccion": "CORTO",
             "precio_entrada": precio,
             "stop_loss": precio * (1 + STOP_LOSS_PCT),
             "take_profit": precio * (1 - TAKE_PROFIT_PCT),
-            "razon": razon,
+            "razon": "precio bajo SMA200 + RSI en sobrecompra",
         }
 
     return None
@@ -248,7 +212,7 @@ def armar_mensaje(resultados: list[dict], senales: list[dict]) -> str:
 
     lineas.append("")
     lineas.append(
-        "Basado en backtesting de 360 días, sin comisiones/slippage. "
+        "Basado en backtesting de 730 días, sin comisiones/slippage. "
         "No es asesoría financiera."
     )
 
@@ -258,7 +222,6 @@ def armar_mensaje(resultados: list[dict], senales: list[dict]) -> str:
 def main() -> int:
     resultados = []
     senales = []
-    estado_cruces = cargar_estado_cruces()
 
     for simbolo in SIMBOLOS:
         try:
@@ -269,15 +232,10 @@ def main() -> int:
 
         resultados.append(indicadores)
 
-        senal = evaluar_senal(indicadores, estado_cruces.get(simbolo))
+        senal = evaluar_senal(indicadores)
         if senal:
             senal["simbolo"] = simbolo
             senales.append(senal)
-
-        if indicadores["cruce_tiempo"] is not None:
-            estado_cruces[simbolo] = indicadores["cruce_tiempo"]
-
-    guardar_estado_cruces(estado_cruces)
 
     if not resultados:
         logger.error("No se pudo calcular indicadores para ninguna moneda, no se envía mensaje")
