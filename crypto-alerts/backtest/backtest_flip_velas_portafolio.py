@@ -30,6 +30,7 @@ MAX_HOLD_VELAS = 5  # días - misma ventana usada para validar el patrón
 CONFIGS_SL_TP = {
     "3% SL / 3% TP": (3.0, 3.0),
     "5% SL / 3% TP": (5.0, 3.0),
+    "5% SL / 5% TP": (5.0, 5.0),
     "3% SL / 5% TP": (3.0, 5.0),
 }
 

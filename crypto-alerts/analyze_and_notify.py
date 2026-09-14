@@ -32,7 +32,13 @@ comparar ambas con capital y comisiones reales sobre 730 días:
     base de 70.9%).
   - SL 3% / TP 5% fue la combinación con mejor resultado en backtest de
     portafolio (78 trades, 46.2% win rate, +2.33% neto con comisiones,
-    sobre las 7 monedas originales).
+    sobre las 7 monedas originales) - PERO por pedido explícito el ratio
+    en producción quedó en SL 5% / TP 5% (1:1), que en el mismo
+    backtest (sobre las 15 monedas del universo ampliado) rinde menos:
+    176 trades, 50.0% win rate, +0.20% neto (contra +1.29% del ratio
+    3%/5% con el mismo universo de 15). Sigue siendo positivo, pero es
+    la configuración más débil de las probadas - queda documentado acá
+    por transparencia, no porque sea la recomendación técnica.
 
 Universo ampliado a 15 monedas (de un candidato de 20, ver
 analisis_precision_flip_por_moneda.py): las 7 originales (XRP, ADA,
@@ -40,10 +46,7 @@ DOGE, LINK, AVAX, DOT, LTC) + 8 nuevas con al menos 5 activaciones
 históricas y precisión por encima de la tasa base en al menos un lado
 (SOL, UNI, ARB, BCH, APT, OP, ETC, NEAR). Quedaron fuera BTC, ETH, BNB,
 TRX, ATOM - muestra grande y confiable, pero precisión que NO supera la
-base (no es falta de datos: el patrón no funciona bien ahí). Con las 15
-monedas el backtest de portafolio dio +1.29% neto (181 trades, 40.9%
-win rate) - menos eficiente por moneda que con las 7 originales, pero
-sigue siendo positivo.
+base (no es falta de datos: el patrón no funciona bien ahí).
 
 El cron corre cada 4h (no una vez al día, por pedido explícito): la
 regla lee la vela DIARIA, así que la mayor parte del día se evalúa la
@@ -100,7 +103,7 @@ RSI_SOBREVENTA_GATILLO = 30
 STOCH_SOBRECOMPRA_GATILLO = 80
 WILLR_SOBRECOMPRA_GATILLO = -20
 
-STOP_LOSS_PCT = 0.03
+STOP_LOSS_PCT = 0.05
 TAKE_PROFIT_PCT = 0.05
 
 
