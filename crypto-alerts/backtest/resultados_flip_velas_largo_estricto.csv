@@ -1,0 +1,18 @@
+condición,veces_activada,precisión_%
+RSI < 30,31,58.1
+Volumen > 2x promedio,49,51.0
+Bollinger %B < 0,14,50.0
+Precio > SMA200 (alcista),169,45.0
+ADX > 25 (tendencia fuerte previa),391,43.5
+Volumen > 1.5x promedio (flip con fuerza),111,43.2
+OBV bajando (últimas 20 velas),514,41.6
+Cuerpo grande (>=3% del precio),301,39.2
+RSI < 45,373,38.9
+DI- > DI+ (venta dominante previa),553,38.9
+Precio < SMA200 (bajista),719,38.8
+MFI < 20,31,38.7
+CMF < 0 (flujo vendedor previo),463,38.4
+Mecha inferior > 2x el cuerpo (tipo martillo),174,33.9
+CCI < -100,199,31.2
+Williams %R < -80,116,28.4
+Estocástico < 20,188,27.7

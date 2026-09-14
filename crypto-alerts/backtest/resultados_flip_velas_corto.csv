@@ -1,0 +1,18 @@
+condición,veces_activada,precisión_%
+Volumen > 2x promedio,26,88.5
+Williams %R > -20,61,83.6
+Estocástico > 80,112,78.6
+ADX > 25 (tendencia fuerte previa),400,77.2
+Cuerpo grande (>=3% del precio),262,77.1
+RSI > 55,187,77.0
+Bollinger %B > 1,32,75.0
+CCI > 100,160,74.4
+Volumen > 1.5x promedio (flip con fuerza),85,72.9
+CMF > 0 (flujo comprador previo),420,71.7
+DI+ > DI- (compra dominante previa),388,71.4
+Precio < SMA200 (bajista),710,71.1
+OBV subiendo (últimas 20 velas),365,70.4
+RSI > 70,20,70.0
+Precio > SMA200 (alcista),182,69.8
+Mecha superior > 2x el cuerpo (tipo estrella fugaz),202,68.8
+MFI > 80,28,67.9
