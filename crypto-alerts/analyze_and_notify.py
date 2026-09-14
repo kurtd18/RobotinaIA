@@ -31,13 +31,26 @@ comparar ambas con capital y comisiones reales sobre 730 días:
     de precisión sobre un movimiento >=3% en <=5 días, contra una tasa
     base de 70.9%).
   - SL 3% / TP 5% fue la combinación con mejor resultado en backtest de
-    portafolio (78 trades, 46.2% win rate, +2.33% neto con comisiones).
-  - Mismo universo de 7 monedas seleccionadas por precisión (XRP, ADA,
-    DOGE, LINK, AVAX, DOT, LTC).
+    portafolio (78 trades, 46.2% win rate, +2.33% neto con comisiones,
+    sobre las 7 monedas originales).
 
-El cron pasó de cada 4h a una vez al día (poco después de la medianoche
-UTC, cuando ya cerró la vela diaria de Binance) - correr más seguido no
-aporta nada con una regla que solo mira el cierre de la vela diaria.
+Universo ampliado a 15 monedas (de un candidato de 20, ver
+analisis_precision_flip_por_moneda.py): las 7 originales (XRP, ADA,
+DOGE, LINK, AVAX, DOT, LTC) + 8 nuevas con al menos 5 activaciones
+históricas y precisión por encima de la tasa base en al menos un lado
+(SOL, UNI, ARB, BCH, APT, OP, ETC, NEAR). Quedaron fuera BTC, ETH, BNB,
+TRX, ATOM - muestra grande y confiable, pero precisión que NO supera la
+base (no es falta de datos: el patrón no funciona bien ahí). Con las 15
+monedas el backtest de portafolio dio +1.29% neto (181 trades, 40.9%
+win rate) - menos eficiente por moneda que con las 7 originales, pero
+sigue siendo positivo.
+
+El cron corre cada 4h (no una vez al día, por pedido explícito): la
+regla lee la vela DIARIA, así que la mayor parte del día se evalúa la
+vela de hoy todavía en formación (no cerrada) - el dato solo queda
+"confirmado" en la corrida de después de medianoche UTC. Es un
+trade-off conocido y aceptado a cambio de notificaciones más
+frecuentes.
 """
 
 import sys
@@ -52,7 +65,8 @@ from app.providers.binance_provider import BinanceProvider, BinanceProviderError
 from app.providers.yahoo_provider import YahooProvider, YahooProviderError
 from app.services.telegram_service import enviar_mensaje_telegram
 
-SIMBOLOS = ["XRP", "ADA", "DOGE", "LINK", "AVAX", "DOT", "LTC"]
+SIMBOLOS = ["XRP", "ADA", "DOGE", "LINK", "AVAX", "DOT", "LTC",
+            "SOL", "UNI", "ARB", "BCH", "APT", "OP", "ETC", "NEAR"]
 INTERVALO = "1d"
 VELAS_NECESARIAS = 260  # margen sobre las ~250 que conviene tener para RSI/Estocástico/Williams%R con historia de sobra
 
@@ -68,6 +82,14 @@ SIMBOLO_A_TICKER_YAHOO = {
     "AVAX": "AVAX-USD",
     "DOT": "DOT-USD",
     "LTC": "LTC-USD",
+    "SOL": "SOL-USD",
+    "UNI": "UNI-USD",
+    "ARB": "ARB-USD",
+    "BCH": "BCH-USD",
+    "APT": "APT-USD",
+    "OP": "OP-USD",
+    "ETC": "ETC-USD",
+    "NEAR": "NEAR-USD",
 }
 
 RSI_PERIODO = 14

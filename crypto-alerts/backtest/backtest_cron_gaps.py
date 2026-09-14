@@ -34,13 +34,18 @@ import numpy as np
 import pandas as pd
 
 EXCHANGE_ID = "binance"
-# Universo seleccionado tras medir precisión del gatillo por moneda
-# (resultados_precision_por_moneda.csv): de las 15 originales, solo estas
-# 7 tienen precisión >=55% en LARGO Y >=50% en CORTO (las demás - BTC,
-# TRX, BCH, UNI por precisión baja en ambos lados; ETH, BNB, SOL por
-# precisión floja del lado CORTO - diluían el resultado del portafolio).
+# Universo ampliado a 15 monedas tras medir precisión de los gatillos de
+# la estrategia de flip de velas (resultados_precision_flip_20_monedas.csv)
+# sobre un candidato de 20: las 7 originales (XRP/ADA/DOGE/LINK/AVAX/DOT/
+# LTC) + 8 nuevas con >=5 activaciones históricas y precisión por encima
+# de la tasa base en al menos un lado (SOL, UNI, ARB, BCH, APT, OP, ETC,
+# NEAR). Quedaron fuera BTC, ETH, BNB, TRX, ATOM - tienen muestra grande
+# y confiable, pero precisión que NO supera la base (no es falta de
+# datos, es que el patrón no funciona bien en esas 5 monedas).
 SYMBOLS = ["XRP/USDT", "ADA/USDT", "DOGE/USDT", "LINK/USDT",
-           "AVAX/USDT", "DOT/USDT", "LTC/USDT"]
+           "AVAX/USDT", "DOT/USDT", "LTC/USDT", "SOL/USDT",
+           "UNI/USDT", "ARB/USDT", "BCH/USDT", "APT/USDT",
+           "OP/USDT", "ETC/USDT", "NEAR/USDT"]
 TIMEFRAME = "1h"
 LOOKBACK_DAYS = 730
 

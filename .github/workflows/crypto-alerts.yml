@@ -3,11 +3,17 @@ name: Crypto Alerts
 on:
   workflow_dispatch: {}
   schedule:
-    # Una vez al día - la estrategia ahora mira velas DIARIAS (flip de
-    # color + RSI/Estocástico/Williams%R), corre poco después de la
-    # medianoche UTC cuando Binance ya cerró la vela del día. Correr
-    # más seguido no aporta nada: la vela de hoy no cambia hasta mañana.
-    - cron: '15 0 * * *'   # ~7:15 PM Colombia (día anterior)
+    # Cada 4h, por pedido explícito. La regla lee la vela DIARIA, así
+    # que fuera de la corrida de las 02:15 UTC (justo después del cierre
+    # de la vela de Binance a medianoche) las demás corridas evalúan la
+    # vela de hoy todavía en formación, no un dato cerrado - trade-off
+    # conocido y aceptado a cambio de notificaciones más frecuentes.
+    - cron: '15 2 * * *'
+    - cron: '15 6 * * *'
+    - cron: '15 10 * * *'
+    - cron: '15 14 * * *'
+    - cron: '15 18 * * *'
+    - cron: '15 22 * * *'
 
 permissions:
   contents: read
