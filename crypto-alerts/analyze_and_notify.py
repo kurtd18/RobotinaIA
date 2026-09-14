@@ -1,6 +1,6 @@
 """
-Análisis de señales cripto (RSI/MFI/Bollinger%B/SMA200) y notificación
-por Telegram.
+Análisis de señales cripto (patrón de flip de vela diaria + RSI/
+Estocástico/Williams%R) y notificación por Telegram.
 
 Reemplaza el paso anterior, que le pedía a un LLM (vía herramientas MCP)
 que calculara y redactara estos indicadores en lenguaje natural. Eso
@@ -15,20 +15,29 @@ reales de Binance, la regla de entrada se aplica como código, no como
 "criterio" de un modelo, y el mensaje se arma con f-strings, no con
 texto generado. No hay ningún paso de LLM en esta ruta.
 
-Universo, gatillo de entrada y SL/TP validados en
-crypto-alerts/backtest/ (ver backtest_precision_por_moneda.py,
-backtest_sondeo_sltp.py y los commits asociados):
-  - Universo de 7 monedas seleccionadas por precisión del gatillo (de
-    un universo original de 15, se descartaron BTC/BNB/SOL/TRX/BCH/UNI/
-    ETH por precisión insuficiente en al menos un lado LARGO/CORTO).
-  - El cruce EMA12/26 se eliminó como vía de entrada: medido en 4h sobre
-    las 15 monedas, tenía precisión peor que el azar (lift < 1).
-  - LARGO exige RSI+MFI+Bollinger%B en sobreventa simultánea (el
-    "gatillo triple"), que en backtest da mejor precisión que RSI solo.
-    Para CORTO el triple no mejoró sobre RSI solo, así que ese lado
-    sigue usando solo RSI.
-  - SL 3.5% / TP 1.5% fue la mejor combinación en un sondeo de 81
-    combinaciones (SL y TP de 1% a 5%) sobre este universo y gatillo.
+Estrategia validada en crypto-alerts/backtest/ (ver
+analisis_patron_flip_velas.py y backtest_flip_velas_portafolio.py) -
+reemplaza a la anterior (RSI+MFI+Bollinger%B en velas 1h) tras
+comparar ambas con capital y comisiones reales sobre 730 días:
+
+  - Velas DIARIAS (antes 1h) - el patrón es de "flip de color de vela":
+    una vela roja seguida de una verde (o viceversa), con una condición
+    de momentum extremo el día del flip.
+  - LARGO: la vela de hoy cierra verde, la de ayer cerró roja, Y el RSI
+    de hoy < 30 (58.1% de precisión sobre un movimiento >=5% en <=3
+    días, contra una tasa base de 40.0% sin ese filtro).
+  - CORTO: la vela de hoy cierra roja, la de ayer cerró verde, Y el
+    Estocástico(14) de hoy > 80 Y el Williams%R(14) de hoy > -20 (85.4%
+    de precisión sobre un movimiento >=3% en <=5 días, contra una tasa
+    base de 70.9%).
+  - SL 3% / TP 5% fue la combinación con mejor resultado en backtest de
+    portafolio (78 trades, 46.2% win rate, +2.33% neto con comisiones).
+  - Mismo universo de 7 monedas seleccionadas por precisión (XRP, ADA,
+    DOGE, LINK, AVAX, DOT, LTC).
+
+El cron pasó de cada 4h a una vez al día (poco después de la medianoche
+UTC, cuando ya cerró la vela diaria de Binance) - correr más seguido no
+aporta nada con una regla que solo mira el cierre de la vela diaria.
 """
 
 import sys
@@ -44,8 +53,8 @@ from app.providers.yahoo_provider import YahooProvider, YahooProviderError
 from app.services.telegram_service import enviar_mensaje_telegram
 
 SIMBOLOS = ["XRP", "ADA", "DOGE", "LINK", "AVAX", "DOT", "LTC"]
-INTERVALO = "1h"
-VELAS_NECESARIAS = 250  # margen sobre las 200 que pide la SMA200
+INTERVALO = "1d"
+VELAS_NECESARIAS = 260  # margen sobre las ~250 que conviene tener para RSI/Estocástico/Williams%R con historia de sobra
 
 # La API spot de Binance (api.binance.com) devuelve HTTP 451 (bloqueo
 # geográfico) desde runners de GitHub Actions alojados en EE.UU. Yahoo
@@ -62,22 +71,20 @@ SIMBOLO_A_TICKER_YAHOO = {
 }
 
 RSI_PERIODO = 14
-MFI_PERIODO = 14
-BB_PERIODO = 20
-BB_DESV = 2
-SMA_TENDENCIA = 200
+STOCH_K, STOCH_D, STOCH_SUAVIZADO = 14, 3, 3
+WILLR_PERIODO = 14
 
-RSI_SOBREVENTA = 30
-RSI_SOBRECOMPRA = 70
-MFI_SOBREVENTA = 20
+RSI_SOBREVENTA_GATILLO = 30
+STOCH_SOBRECOMPRA_GATILLO = 80
+WILLR_SOBRECOMPRA_GATILLO = -20
 
-STOP_LOSS_PCT = 0.035
-TAKE_PROFIT_PCT = 0.015
+STOP_LOSS_PCT = 0.03
+TAKE_PROFIT_PCT = 0.05
 
 
 def obtener_velas(simbolo: str) -> "pd.DataFrame":
     """
-    Velas 1h para `símbolo`, vía Binance primero y Yahoo Finance como
+    Velas 1D para `símbolo`, vía Binance primero y Yahoo Finance como
     respaldo si Binance falla (típicamente HTTP 451 en runners de CI
     de EE.UU.). Lanza RuntimeError si ambas fuentes fallan.
     """
@@ -87,7 +94,7 @@ def obtener_velas(simbolo: str) -> "pd.DataFrame":
         logger.warning(f"Binance falló para {simbolo} ({e_binance}), probando Yahoo Finance...")
         try:
             ticker = SIMBOLO_A_TICKER_YAHOO[simbolo]
-            return YahooProvider().get_hourly_history(ticker, period="30d")
+            return YahooProvider().get_daily_history(ticker, period="2y")
         except YahooProviderError as e_yahoo:
             raise RuntimeError(
                 f"No se pudo obtener velas de {simbolo} ni por Binance ni por Yahoo Finance "
@@ -96,8 +103,9 @@ def obtener_velas(simbolo: str) -> "pd.DataFrame":
 
 
 def calcular_indicadores(simbolo: str) -> dict:
-    """Descarga velas 1h (Binance con respaldo en Yahoo Finance) y
-    calcula RSI/MFI/Bollinger%B/SMA200 con pandas_ta.
+    """Descarga velas 1D (Binance con respaldo en Yahoo Finance) y
+    calcula RSI/Estocástico/Williams%R con pandas_ta, más el color de
+    la vela de hoy y de ayer para detectar el flip.
 
     Lanza RuntimeError si no se pudieron obtener datos de ninguna
     fuente (se deja propagar para que quien llame decida si omite esa
@@ -105,35 +113,34 @@ def calcular_indicadores(simbolo: str) -> dict:
     """
     df = obtener_velas(simbolo)
 
-    cierre, alto, bajo, volumen = df["Close"], df["High"], df["Low"], df["Volume"]
+    if len(df) < 2:
+        raise RuntimeError(f"Datos insuficientes para {simbolo} ({len(df)} velas, se necesitan al menos 2)")
+
+    apertura, alto, bajo, cierre = df["Open"], df["High"], df["Low"], df["Close"]
     rsi = ta.rsi(cierre, length=RSI_PERIODO)
-    mfi = ta.mfi(alto, bajo, cierre, volumen, length=MFI_PERIODO)
-    bbands = ta.bbands(cierre, length=BB_PERIODO, std=BB_DESV)
-    sma200 = ta.sma(cierre, length=SMA_TENDENCIA)
+    stoch = ta.stoch(alto, bajo, cierre, k=STOCH_K, d=STOCH_D, smooth_k=STOCH_SUAVIZADO)
+    willr = ta.willr(alto, bajo, cierre, length=WILLR_PERIODO)
 
-    if rsi is None or mfi is None or bbands is None or sma200 is None or sma200.dropna().empty:
-        raise RuntimeError(
-            f"Datos insuficientes para calcular indicadores de {simbolo} "
-            f"({len(df)} velas disponibles, se necesitan al menos {SMA_TENDENCIA})"
-        )
+    if rsi is None or stoch is None or willr is None:
+        raise RuntimeError(f"No se pudieron calcular los indicadores de {simbolo} ({len(df)} velas disponibles)")
 
-    bb_lower, bb_upper = bbands.iloc[:, 0], bbands.iloc[:, 2]
-    bb_pct_b = (cierre - bb_lower) / (bb_upper - bb_lower)
+    stoch_k = stoch.iloc[:, 0]
 
-    precio_actual = float(cierre.iloc[-1])
-    rsi_actual = float(rsi.iloc[-1])
-    mfi_actual = float(mfi.iloc[-1])
-    bb_pct_b_actual = float(bb_pct_b.iloc[-1])
-    sma200_actual = float(sma200.iloc[-1])
-    tendencia_alcista = precio_actual > sma200_actual
+    def color_de(idx: int) -> str:
+        if cierre.iloc[idx] > apertura.iloc[idx]:
+            return "verde"
+        if cierre.iloc[idx] < apertura.iloc[idx]:
+            return "roja"
+        return "doji"
 
     return {
         "simbolo": simbolo,
-        "precio": precio_actual,
-        "rsi": rsi_actual,
-        "mfi": mfi_actual,
-        "bb_pct_b": bb_pct_b_actual,
-        "tendencia_alcista": tendencia_alcista,
+        "precio": float(cierre.iloc[-1]),
+        "rsi": float(rsi.iloc[-1]),
+        "stoch_k": float(stoch_k.iloc[-1]),
+        "willr": float(willr.iloc[-1]),
+        "color_hoy": color_de(-1),
+        "color_ayer": color_de(-2),
     }
 
 
@@ -142,51 +149,53 @@ def evaluar_senal(indicadores: dict) -> dict | None:
     universo de 7 monedas, ver docstring del módulo) - sin criterio
     adicional:
 
-    LARGO solo si: precio > SMA200 Y RSI < 30 Y MFI < 20 Y Bollinger%B < 0
-    CORTO solo si: precio < SMA200 Y RSI > 70
+    LARGO solo si: vela de ayer roja Y vela de hoy verde Y RSI hoy < 30
+    CORTO solo si: vela de ayer verde Y vela de hoy roja Y Estocástico
+                   hoy > 80 Y Williams%R hoy > -20
     """
     precio = indicadores["precio"]
     rsi = indicadores["rsi"]
-    mfi = indicadores["mfi"]
-    bb_pct_b = indicadores["bb_pct_b"]
-    alcista = indicadores["tendencia_alcista"]
+    stoch_k = indicadores["stoch_k"]
+    willr = indicadores["willr"]
+    color_hoy = indicadores["color_hoy"]
+    color_ayer = indicadores["color_ayer"]
 
-    sobreventa_triple = rsi < RSI_SOBREVENTA and mfi < MFI_SOBREVENTA and bb_pct_b < 0
-    sobrecompra = rsi > RSI_SOBRECOMPRA
+    flip_a_verde = color_ayer == "roja" and color_hoy == "verde"
+    flip_a_roja = color_ayer == "verde" and color_hoy == "roja"
 
-    if alcista and sobreventa_triple:
+    if flip_a_verde and rsi < RSI_SOBREVENTA_GATILLO:
         return {
             "direccion": "LARGO",
             "precio_entrada": precio,
             "stop_loss": precio * (1 - STOP_LOSS_PCT),
             "take_profit": precio * (1 + TAKE_PROFIT_PCT),
-            "razon": "precio sobre SMA200 + RSI/MFI/Bollinger%B en sobreventa simultánea",
+            "razon": f"vela pasó de roja a verde + RSI en sobreventa ({rsi:.1f})",
         }
 
-    if not alcista and sobrecompra:
+    if flip_a_roja and stoch_k > STOCH_SOBRECOMPRA_GATILLO and willr > WILLR_SOBRECOMPRA_GATILLO:
         return {
             "direccion": "CORTO",
             "precio_entrada": precio,
             "stop_loss": precio * (1 + STOP_LOSS_PCT),
             "take_profit": precio * (1 - TAKE_PROFIT_PCT),
-            "razon": "precio bajo SMA200 + RSI en sobrecompra",
+            "razon": f"vela pasó de verde a roja + Estocástico ({stoch_k:.1f}) y Williams%R ({willr:.1f}) en sobrecompra",
         }
 
     return None
 
 
 def armar_tabla(resultados: list[dict]) -> str:
-    """Tabla de precio/RSI/tendencia en bloque de código (monoespaciado),
-    para que Telegram alinee las columnas de verdad - el Markdown
-    "legacy" que usa el bot no soporta tablas, solo texto plano y
-    bloques ```pre```, que sí respetan el ancho fijo de cada columna.
+    """Tabla de precio/RSI/color de vela en bloque de código
+    (monoespaciado), para que Telegram alinee las columnas de verdad -
+    el Markdown "legacy" que usa el bot no soporta tablas, solo texto
+    plano y bloques ```pre```, que sí respetan el ancho fijo de cada
+    columna.
     """
-    encabezado = f"{'Moneda':<7}{'Precio':>14}{'RSI':>8}  Tendencia"
+    encabezado = f"{'Moneda':<7}{'Precio':>14}{'RSI':>8}  Vela hoy"
     filas = [encabezado, "-" * len(encabezado)]
     for r in resultados:
-        tendencia = "Arriba" if r["tendencia_alcista"] else "Bajista"
         precio_fmt = f"${r['precio']:,.4f}"
-        filas.append(f"{r['simbolo']:<7}{precio_fmt:>14}{r['rsi']:>8.2f}  {tendencia}")
+        filas.append(f"{r['simbolo']:<7}{precio_fmt:>14}{r['rsi']:>8.2f}  {r['color_hoy'].capitalize()}")
     return "```\n" + "\n".join(filas) + "\n```"
 
 

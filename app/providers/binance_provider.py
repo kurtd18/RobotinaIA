@@ -43,7 +43,7 @@ MAX_REINTENTOS = 3
 # 418 (IP bloqueada temporalmente por insistir tras un 429).
 CODIGOS_RATE_LIMIT = {429, 418}
 
-INTERVALOS_SOPORTADOS = ("15m", "1h", "4h")
+INTERVALOS_SOPORTADOS = ("15m", "1h", "4h", "1d")
 
 
 class BinanceProviderError(Exception):

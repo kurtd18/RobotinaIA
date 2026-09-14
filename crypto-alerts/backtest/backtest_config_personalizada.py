@@ -20,7 +20,7 @@ from backtest_portafolio import (
     CAPITAL_TOTAL_COP, agregar_mfi_bollinger, generar_senales, simular_portafolio,
 )
 
-SL_PCT = 3.0
+SL_PCT = 3.5
 TP_PCT = 1.5
 TAMANO_POSICION_COP = 500_000
 
